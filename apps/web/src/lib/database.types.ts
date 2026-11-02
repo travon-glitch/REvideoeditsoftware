@@ -22,6 +22,7 @@ export type ProfileRow = {
   can_download: boolean; can_use_ai: boolean; max_videos_per_month: number | null;
   max_ai_generations_per_month: number | null; invited_by: string | null;
   ui_mode: "easy" | "advanced"; avatar_path: string | null; created_at: string; updated_at: string;
+  can_batch_generate: boolean;
 };
 export type ProjectMemberRow = {
   project_id: string; user_id: string; organization_id: string; access: "viewer" | "editor";
@@ -31,6 +32,7 @@ export type OrganizationSettingsRow = {
   organization_id: string; ai_enabled: boolean; monthly_ai_budget_cents: number | null;
   default_max_videos_per_month: number | null; default_max_ai_generations_per_month: number | null;
   viewers_can_download_by_default: boolean; updated_by: string | null; updated_at: string;
+  max_batch_size: number; concurrent_render_limit: number; daily_video_limit: number | null;
 };
 export type BrandKitRow = {
   id: string; organization_id: string; name: string; is_default: boolean; company_name: string | null;
@@ -69,6 +71,7 @@ export type VideoProjectRow = {
   brand_kit_id: string | null; created_by: string | null; title: string; status: VideoStatus;
   aspect_ratios: string[]; settings: Json; document: Json | null; revision: number;
   thumbnail_path: string | null; created_at: string; updated_at: string; edit_plan: Json | null;
+  batch_id: string | null; batch_type: string | null; batch_variation: number;
 };
 export type ProjectRevisionRow = {
   project_id: string; revision: number; organization_id: string; document: Json; author_id: string | null;
@@ -82,6 +85,13 @@ export type GenerationJobRow = {
   output_asset_id: string | null; error_message: string | null; cost_estimate_cents: number | null;
   cost_actual_cents: number | null; created_at: string; started_at: string | null; finished_at: string | null;
   progress: number; attempts: number; worker_id: string | null; review: Json | null;
+};
+export type VideoBatchRow = {
+  id: string; organization_id: string; listing_id: string | null; created_by: string | null; size: number; analysis: Json; created_at: string;
+};
+export type LibraryVideoRow = {
+  id: string; organization_id: string; render_job_id: string; project_id: string | null; title: string; aspect: string;
+  duration_seconds: number | null; output_path: string; saved_by: string | null; saved_at: string;
 };
 export type RenderJobRow = {
   id: string; organization_id: string; project_id: string; revision: number; preset: string; status: JobStatus;
@@ -110,7 +120,10 @@ export type Database = {
       profiles: Table<ProfileRow, "id" | "organization_id" | "email", "first_name" | "last_name" | "ui_mode" | "avatar_path">;
       project_members: Table<ProjectMemberRow, "project_id" | "user_id" | "organization_id", never>;
       organization_settings: Table<OrganizationSettingsRow, "organization_id",
-        "ai_enabled" | "monthly_ai_budget_cents" | "default_max_videos_per_month" | "default_max_ai_generations_per_month" | "viewers_can_download_by_default" | "updated_by">;
+        "ai_enabled" | "monthly_ai_budget_cents" | "default_max_videos_per_month" | "default_max_ai_generations_per_month" | "viewers_can_download_by_default" | "updated_by"
+        | "max_batch_size" | "concurrent_render_limit" | "daily_video_limit">;
+      video_batches: Table<VideoBatchRow, "organization_id" | "size">;
+      library_videos: Table<LibraryVideoRow, "organization_id" | "render_job_id" | "title" | "aspect" | "output_path">;
       brand_kits: Table<BrandKitRow, "organization_id" | "name">;
       listings: Table<ListingRow, "organization_id">;
       listing_members: Table<ListingMemberRow, "listing_id" | "user_id" | "organization_id", never>;
@@ -149,6 +162,8 @@ export type Database = {
       reorder_listing_photos: { Args: { p_listing_id: string; p_asset_ids: string[] }; Returns: undefined };
       listing_access: { Args: { p_listing: string }; Returns: "none" | "read" | "edit" };
       project_access: { Args: { p_project: string }; Returns: "none" | "read" | "edit" };
+      start_video_batch: { Args: { p_listing_id: string; p_size: number; p_analysis?: Json }; Returns: VideoBatchRow };
+      admin_set_batch_permission: { Args: { p_user_id: string; p_allowed: boolean }; Returns: ProfileRow };
       review_ai_clip: { Args: { p_asset: string; p_decision: "approved" | "problem"; p_note?: string | null }; Returns: Json };
       bootstrap_is_complete: { Args: Record<PropertyKey, never>; Returns: boolean };
       bootstrap_create_token: { Args: { p_token_hash: string; p_ttl_minutes?: number }; Returns: string };

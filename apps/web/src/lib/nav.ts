@@ -1,7 +1,7 @@
 import { can, type Permission, type Role } from "@/lib/auth/roles";
 
 export type NavIcon =
-  | "dashboard" | "create" | "listings" | "videos" | "templates" | "camera" | "effects" | "admin";
+  | "dashboard" | "create" | "batch" | "listings" | "videos" | "library" | "templates" | "camera" | "effects" | "admin";
 
 export interface NavItem {
   href: string;
@@ -16,8 +16,10 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard", permission: "videos.view", hint: "Your home page" },
   { href: "/create", label: "Create Video", icon: "create", permission: "videos.create", hint: "Make a new listing video" },
+  { href: "/generate", label: "Generate 6 Videos", icon: "batch", permission: "videos.create", hint: "Six marketing videos in one click" },
   { href: "/listings", label: "My Listings", icon: "listings", permission: "listings.view", hint: "Homes and their photos" },
   { href: "/videos", label: "My Videos", icon: "videos", permission: "videos.view", hint: "Drafts and finished videos" },
+  { href: "/library", label: "Company Library", icon: "library", permission: "videos.view", hint: "Finished videos shared with the company" },
   { href: "/templates", label: "Templates", icon: "templates", permission: "templates.view", hint: "Ready-made video styles" },
   { href: "/camera-studio", label: "Camera Studio", icon: "camera", permission: "camera.use", hint: "Add camera motion to photos" },
   { href: "/ai-effects", label: "AI Effects", icon: "effects", permission: "effects.use", hint: "Enhance photos with AI" },

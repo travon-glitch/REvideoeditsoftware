@@ -236,6 +236,9 @@ export const orgSettingsSchema = z.object({
   }),
   default_max_videos_per_month: optionalLimit(10_000),
   default_max_ai_generations_per_month: optionalLimit(100_000),
+  max_batch_size: z.coerce.number({ invalid_type_error: "Enter a number from 1 to 12." }).int().min(1, "At least 1.").max(12, "At most 12."),
+  concurrent_render_limit: z.coerce.number({ invalid_type_error: "Enter a number from 1 to 50." }).int().min(1, "At least 1.").max(50, "At most 50."),
+  daily_video_limit: optionalLimit(1000),
 });
 
 export const profileSchema = z.object({

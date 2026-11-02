@@ -67,20 +67,20 @@ describe("Stage 3 permissions", () => {
 });
 
 describe("navigation", () => {
-  it("has the eight sections in order", () => {
+  it("has the ten sections in order", () => {
     expect(NAV_ITEMS.map((n) => n.label)).toEqual([
-      "Dashboard", "Create Video", "My Listings", "My Videos", "Templates", "Camera Studio", "AI Effects", "Admin Panel",
+      "Dashboard", "Create Video", "Generate 6 Videos", "My Listings", "My Videos", "Company Library", "Templates", "Camera Studio", "AI Effects", "Admin Panel",
     ]);
   });
 
   it("shows the Admin Panel only to administrators", () => {
     expect(navForRole("editor").map((n) => n.href)).not.toContain("/admin");
     expect(navForRole("admin").map((n) => n.href)).toContain("/admin");
-    expect(navForRole("super_admin").length).toBe(8);
+    expect(navForRole("super_admin").length).toBe(10);
   });
 
   it("hides creation tools from viewers", () => {
-    expect(navForRole("viewer").map((n) => n.href)).toEqual(["/dashboard", "/listings", "/videos", "/templates"]);
+    expect(navForRole("viewer").map((n) => n.href)).toEqual(["/dashboard", "/listings", "/videos", "/library", "/templates"]);
     expect(navForRole(null)).toEqual([]);
   });
 

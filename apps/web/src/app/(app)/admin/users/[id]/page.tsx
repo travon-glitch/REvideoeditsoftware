@@ -17,6 +17,7 @@ import { UserStatusBadge } from "@/components/user-status-badge";
 import {
   AssignListingForm, AssignProjectForm, EditUserForm, ResetAccessButton, StatusButtons, UnassignButton, UnassignListingButton,
 } from "../user-forms";
+import { BatchPermissionToggle } from "./batch-permission";
 
 export const metadata = { title: "Manage user" };
 
@@ -29,6 +30,7 @@ const ACTION_LABELS: Record<string, string> = {
   "user.suspended": "Suspended",
   "user.deactivated": "Deactivated",
   "user.access_reset": "Password link sent",
+  "user.batch_permission": "Generate 6 Videos permission changed",
 };
 
 export default async function ManageUserPage({
@@ -82,6 +84,16 @@ export default async function ManageUserPage({
           <CardContent>
             <EditUserForm userId={user.id} roles={assignableRoles(ctx.profile.role)} advanced={ctx.profile.ui_mode === "advanced"} values={user} />
           </CardContent>
+        </Card>
+      ) : null}
+
+      {ctx.profile.role === "super_admin" && user.role !== "viewer" && user.id !== ctx.userId ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate 6 Videos</CardTitle>
+            <CardDescription>Super Admin only. Company-wide limits are in System settings.</CardDescription>
+          </CardHeader>
+          <CardContent><BatchPermissionToggle userId={user.id} allowed={user.can_batch_generate} /></CardContent>
         </Card>
       ) : null}
 

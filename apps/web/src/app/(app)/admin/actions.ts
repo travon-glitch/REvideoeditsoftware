@@ -177,6 +177,9 @@ export async function saveOrgSettings(_prev: ActionResult | null, formData: Form
     monthly_ai_budget_cents: parsed.data.monthly_ai_budget_dollars,
     default_max_videos_per_month: parsed.data.default_max_videos_per_month,
     default_max_ai_generations_per_month: parsed.data.default_max_ai_generations_per_month,
+    max_batch_size: parsed.data.max_batch_size,
+    concurrent_render_limit: parsed.data.concurrent_render_limit,
+    daily_video_limit: parsed.data.daily_video_limit,
     updated_by: auth.ctx.userId,
   }).eq("organization_id", auth.ctx.organization.id).select("organization_id");
   if (error || !data || data.length === 0) return { ok: false, message: "Only the Super Admin can change these settings." };
@@ -223,4 +226,16 @@ export async function setBrandLogo(path: string): Promise<ActionResult> {
   if (kit.logo_path && kit.logo_path !== path) await supabase.storage.from(BUCKETS.brandAssets).remove([kit.logo_path]);
   revalidatePath("/", "layout");
   return { ok: true, message: "Logo updated." };
+}
+
+/** Super Admin: allow or stop one person from using Generate 6 Videos (checked again in the database). */
+export async function setBatchPermission(userId: string, allowed: boolean): Promise<ActionResult> {
+  const auth = await authorizeAction("settings.manage");
+  if (!auth.ok) return auth.result;
+  if (!isUuid(userId)) return { ok: false, message: "Person not found." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_batch_permission", { p_user_id: userId, p_allowed: allowed });
+  if (error) return { ok: false, message: "Only the Super Admin can change this." };
+  revalidatePath(`/admin/users/${userId}`);
+  return { ok: true };
 }

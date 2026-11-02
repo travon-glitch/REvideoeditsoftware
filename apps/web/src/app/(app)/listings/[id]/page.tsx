@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Images, Plus } from "lucide-react";
+import { ArrowLeft, Images, Plus, Layers } from "lucide-react";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/auth/roles";
@@ -45,7 +45,10 @@ export default async function ListingPage({
     return (
       <div className="flex flex-col gap-6">
         <Button variant="ghost" asChild className="self-start"><Link href="/listings"><ArrowLeft aria-hidden="true" />My Listings</Link></Button>
-        <PageHeader title={title} description="Fill in what you know — everything is saved as you go." />
+        <PageHeader title={title} description="Fill in what you know — everything is saved as you go."
+          actions={can(ctx.profile.role, "videos.create") && managed.length >= 5
+            ? <Button asChild size="lg" variant="outline"><Link href={`/generate?listing=${listing.id}`}><Layers aria-hidden="true" />Generate 6 Videos</Link></Button>
+            : undefined} />
         <ListingWorkspace
           listing={listing}
           photos={managed}
