@@ -94,6 +94,17 @@ export function isProjectMusicPathFor(path: string, orgId: string, projectId: st
   return !!m && m[1] === orgId && m[2] === projectId && isUuid(m[3]);
 }
 
+/** Small preview stored next to the photo: "<org>/listings/<listing>/<random>.thumb.jpg". */
+export function listingThumbPath(orgId: string, listingId: string, objectId: string): string {
+  if (!isUuid(orgId) || !isUuid(listingId) || !isUuid(objectId)) throw new Error("Invalid storage path parts");
+  return `${orgId}/listings/${listingId}/${objectId}.thumb.jpg`;
+}
+
+export function isListingThumbPathFor(path: string, orgId: string, listingId: string): boolean {
+  const m = /^([0-9a-f-]{36})\/listings\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.thumb\.jpg$/i.exec(path);
+  return !!m && m[1] === orgId && m[2] === listingId && isUuid(m[3]);
+}
+
 /** Server-side check for paths sent back by the browser after an upload. */
 export function isListingPhotoPathFor(path: string, orgId: string, listingId: string): boolean {
   const m = /^([0-9a-f-]{36})\/listings\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.(jpg|png|webp|heic|heif)$/i.exec(path);

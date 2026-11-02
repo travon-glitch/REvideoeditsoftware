@@ -20,6 +20,15 @@ describe("upstream tables (Open-Generative-AI, verbatim)", () => {
 });
 
 describe("camera moves", () => {
+  it("use plain English instead of camera jargon", () => {
+    const names = CAMERA_MOVES.map((m) => m.name);
+    expect(names).toContain("Move Closer");
+    expect(names).toContain("Move Back");
+    for (const jargon of [/dolly/i, /pan\b/i, /crane/i, /orbit/i, /drone/i, /push in/i]) {
+      expect(names.some((n) => jargon.test(n)), String(jargon)).toBe(false);
+    }
+  });
+
   it("have unique ids and plain-language copy", () => {
     const ids = CAMERA_MOVES.map((m) => m.id);
     expect(new Set(ids).size).toBe(ids.length);

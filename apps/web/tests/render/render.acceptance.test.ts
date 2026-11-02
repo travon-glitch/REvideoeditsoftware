@@ -11,6 +11,9 @@
  *     scene order, still vs. moving camera, the banner — and it plays in Chrome.
  *  6. 9:16 and 1:1 renders produce 1080×1920 and 1080×1080 MP4s.
  *
+ *  7. STAGE 6: "Auto Create with AI" (the rule-based storyboard maker) and an Easy Mode
+ *     style choice each produce a real, playable MP4 — no camera or render settings touched.
+ *
  * Run with: npm run test:render -w @lvs/web   (needs ffmpeg + Chrome; ~3–4 minutes)
  */
 import { spawnSync } from "node:child_process";
@@ -23,6 +26,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_CHROME_WRAPPER, processJob, probe, type AssetRow, type JobDeps, type RenderJob } from "@lvs/render-worker";
 import { composeDocument, initialPlan, totalDuration, type EditPlan } from "@/lib/video/plan";
 import { validateFableCutDocument } from "@/lib/video/validate-document";
+import { autoDirector, buildEasyPlan, defaultSettings, type EasyListing } from "@/lib/video/easy";
 
 const hasTools = spawnSync("ffmpeg", ["-version"]).status === 0 && existsSync("/usr/bin/google-chrome");
 const OUT = join(__dirname, "..", "..", "test-output");
@@ -291,4 +295,56 @@ describe.skipIf(!hasTools)("other formats and safety", () => {
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/unexpected path/);
   });
+});
+
+describe.skipIf(!hasTools)("Stage 6 acceptance: Easy Mode makes a real video without technical settings", () => {
+  const home: EasyListing = {
+    address_line: "742 Evergreen Terrace", city: "Springfield", state: "OR", price: 525000, bedrooms: 4, bathrooms: 2.5,
+    square_feet: 2150, property_type: "single_family", status: "for_sale", agent_name: "Alice Test", brokerage: "Acme Realty",
+    contact_phone: "555-0100", contact_email: "alice@acme.test", open_house_text: null, cover_asset_id: null,
+  };
+  const render = async (p: EditPlan, name: string) => {
+    const doc = composeDocument({ plan: p, title: "742 Evergreen Terrace", photos: photoInfo(), music: musicInfo(), brand: BRAND });
+    expect(validateFableCutDocument(doc)).toEqual({ ok: true });
+    const { deps, stored } = localDeps();
+    const r = await processJob({ id: randomUUID(), organization_id: org, project_id: project, aspect: p.aspect, document: doc }, deps);
+    expect(r.error ?? "").toBe("");
+    const file = join(OUT, name);
+    writeFileSync(file, [...stored.values()][0]!);
+    return file;
+  };
+
+  it("Auto Create: one click → a 30-second 1080p 'Just Listed' video with music", async () => {
+    // What the button does: listing facts → choices → storyboard (the person picks nothing).
+    const choice = autoDirector({ listing: home, photoCount: 15, musicAssetIds: [music.row.id] });
+    expect(choice.settings).toMatchObject({ style: "just-listed", duration: 30, aspect: "16:9", musicAssetId: music.row.id });
+    const p = buildEasyPlan({ listing: home, photos: photos.map((f) => ({ id: f.row.id })), settings: choice.settings, brand: { company_name: "Acme Realty", outro_text: null } });
+    const file = await render(p, "easy-auto-create-16x9.mp4");
+
+    const info = probe(file);
+    expect([info.width, info.height]).toEqual([1920, 1080]);
+    expect(info.durationSeconds).toBeGreaterThan(29.8);
+    expect(info.durationSeconds).toBeLessThan(30.3);
+    expect(info.hasAudio).toBe(true);
+    expect(spawnSync("ffmpeg", ["-v", "error", "-i", file, "-f", "null", "-"], { encoding: "utf8" }).stderr.trim()).toBe("");
+    // the first scene is the first photo, with the brand-colored "JUST LISTED" banner across the top
+    const W = 384, H = 216;
+    const f = frameAt(file, 1.0, W, H);
+    let magenta = 0;
+    for (let y = 10; y < 60; y++) for (let x = 0; x < W; x += 2) {
+      const i = (y * W + x) * 3;
+      if (f[i]! > 180 && f[i + 1]! < 90 && f[i + 2]! > 180) magenta++;
+    }
+    expect(magenta).toBeGreaterThan(50);
+    expect(nearest(avg(frameAt(file, 1.0, 192, 108), 192, 140, 80, 12))).toBe(0);
+  }, 600_000);
+
+  it("Easy Mode style 'Social Media Reel': a tall 15-second video", async () => {
+    const p = buildEasyPlan({ listing: home, photos: photos.map((f) => ({ id: f.row.id })), settings: defaultSettings("social-reel"), brand: null });
+    const file = await render(p, "easy-social-reel-9x16.mp4");
+    const info = probe(file);
+    expect([info.width, info.height]).toEqual([1080, 1920]);
+    expect(info.durationSeconds).toBeGreaterThan(14.8);
+    expect(info.durationSeconds).toBeLessThan(15.3);
+  }, 600_000);
 });

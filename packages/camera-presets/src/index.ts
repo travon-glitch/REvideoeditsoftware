@@ -44,54 +44,57 @@ export interface CameraMove {
 
 export const CAMERA_MOVES: readonly CameraMove[] = [
   {
-    id: "push_in", name: "Push in", bestFor: "interior", aiOnly: false,
+    id: "push_in", name: "Move Closer", bestFor: "interior", aiOnly: false,
     description: "Slowly moves toward the room, like walking in.",
     motionPrompt: "slow smooth dolly forward into the room, steady gimbal, constant speed",
     kenBurns: { scaleFrom: 1, scaleTo: 1.18, panX: 0, panY: 0 },
   },
   {
-    id: "pull_out", name: "Pull out", bestFor: "any", aiOnly: false,
+    id: "pull_out", name: "Move Back", bestFor: "any", aiOnly: false,
     description: "Starts close and backs away to show the whole space.",
     motionPrompt: "slow smooth dolly backward revealing the full space, steady gimbal",
     kenBurns: { scaleFrom: 1.18, scaleTo: 1, panX: 0, panY: 0 },
   },
   {
-    id: "pan_left", name: "Pan left", bestFor: "any", aiOnly: false,
+    id: "pan_left", name: "Slide Left", bestFor: "any", aiOnly: false,
     description: "Glides sideways from right to left.",
     motionPrompt: "slow lateral truck to the left, level horizon, steady",
     kenBurns: { scaleFrom: 1.12, scaleTo: 1.12, panX: -6, panY: 0 },
   },
   {
-    id: "pan_right", name: "Pan right", bestFor: "any", aiOnly: false,
+    id: "pan_right", name: "Slide Right", bestFor: "any", aiOnly: false,
     description: "Glides sideways from left to right.",
     motionPrompt: "slow lateral truck to the right, level horizon, steady",
     kenBurns: { scaleFrom: 1.12, scaleTo: 1.12, panX: 6, panY: 0 },
   },
   {
-    id: "orbit", name: "Orbit", bestFor: "interior", aiOnly: true,
+    id: "orbit", name: "Circle Around", bestFor: "interior", aiOnly: true,
     description: "Circles around the room's main feature.",
     motionPrompt: "slow orbiting arc around the center of the room, parallax between foreground and background",
     kenBurns: { scaleFrom: 1.08, scaleTo: 1.15, panX: 4, panY: 0 },
   },
   {
-    id: "crane_up", name: "Rise up", bestFor: "any", aiOnly: true,
+    id: "crane_up", name: "Rise Up", bestFor: "any", aiOnly: true,
     description: "Lifts up smoothly to show the layout.",
     motionPrompt: "smooth vertical crane up with slight downward tilt, steady",
     kenBurns: { scaleFrom: 1.1, scaleTo: 1.1, panX: 0, panY: -5 },
   },
   {
-    id: "drone_reveal", name: "Drone reveal", bestFor: "exterior", aiOnly: true,
+    id: "drone_reveal", name: "Fly Over", bestFor: "exterior", aiOnly: true,
     description: "Flies up and back to reveal the home and its surroundings.",
     motionPrompt: "aerial drone shot rising and pulling back to reveal the house and its lot, smooth and stable",
     kenBurns: { scaleFrom: 1.2, scaleTo: 1, panX: 0, panY: -3 },
   },
   {
-    id: "walkthrough", name: "Walk through", bestFor: "interior", aiOnly: true,
+    id: "walkthrough", name: "Walk Through", bestFor: "interior", aiOnly: true,
     description: "Moves forward as if walking into the next room.",
     motionPrompt: "first-person walkthrough moving forward at walking pace, stabilized, natural perspective",
     kenBurns: { scaleFrom: 1, scaleTo: 1.25, panX: 0, panY: 0 },
   },
 ] as const;
+
+/** Plain-English name for "no camera movement". */
+export const STILL_NAME = "Hold Still";
 
 /** Guardrail added to every AI prompt so the property is not altered. */
 export const FIDELITY_GUARDRAIL =

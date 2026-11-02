@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Download, Film, Pencil, Type } from "lucide-react";
-import { getMove } from "@lvs/camera-presets";
+import { ArrowLeft, Download, Film, Pencil, Type, Wand2 } from "lucide-react";
+import { STILL_NAME, getMove } from "@lvs/camera-presets";
+import { RefreshWhile } from "@/components/video/refresh-while";
+import { ORIENTATION_LABELS } from "@/lib/video/easy";
+import type { Aspect } from "@/lib/video/plan";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/storage";
@@ -44,6 +47,7 @@ export default async function VideoPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <RefreshWhile active={(renders ?? []).some((r) => r.status === "queued" || r.status === "running")} />
       <Button variant="ghost" asChild className="self-start"><Link href="/videos"><ArrowLeft aria-hidden="true" />All videos</Link></Button>
       <PageHeader
         title={video.title}
@@ -51,8 +55,11 @@ export default async function VideoPage({
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <VideoStatusBadge status={video.status} />
+            {access === "edit" && video.listing_id ? (
+              <Button asChild size="lg" className="bg-brand text-white hover:bg-brand/90"><Link href={`/create?project=${id}&step=3`}><Wand2 aria-hidden="true" />Change with Easy Mode</Link></Button>
+            ) : null}
             {access === "edit" ? (
-              <Button asChild size="lg" className="bg-brand text-white hover:bg-brand/90"><Link href={`/videos/${id}/edit`}><Pencil aria-hidden="true" />Open editor</Link></Button>
+              <Button asChild size="lg" variant="outline"><Link href={`/videos/${id}/edit`}><Pencil aria-hidden="true" />Advanced editor</Link></Button>
             ) : null}
           </div>
         }
@@ -70,7 +77,7 @@ export default async function VideoPage({
             <ul className="divide-y rounded-lg border">
               {renders.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-base">
-                  <span className="w-28 font-semibold">{r.aspect}</span>
+                  <span className="w-28 font-semibold">{ORIENTATION_LABELS[r.aspect as Aspect]?.label ?? r.aspect}</span>
                   <span className="flex-1 text-muted-foreground">
                     {r.status === "succeeded" ? `${r.width}×${r.height} · ${Math.round(Number(r.duration_seconds ?? 0))} s · ${formatDateTime(r.created_at)}`
                       : r.status === "failed" ? `Didn't finish: ${r.error_message ?? "unknown problem"}`
@@ -84,7 +91,7 @@ export default async function VideoPage({
             </ul>
           ) : (
             <p className="text-base text-muted-foreground">
-              {access === "edit" ? "No exports yet. Open the editor and choose Export." : "No finished videos yet."}
+              {access === "edit" ? "No videos made yet. Choose “Change with Easy Mode” and press Generate My Video." : "No finished videos yet."}
             </p>
           )}
           {!ctx.profile.can_download ? <p className="mt-3 text-sm text-muted-foreground">Downloads are turned off for your account.</p> : null}
@@ -103,7 +110,7 @@ export default async function VideoPage({
                 <li key={c.id} className="flex min-h-12 items-center gap-3 py-2 text-base">
                   <Film className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <span className="flex-1">Scene {i + 1}</span>
-                  <span className="text-muted-foreground">{getMove(c.cameraMove ?? "")?.name ?? "Still"}</span>
+                  <span className="text-muted-foreground">{getMove(c.cameraMove ?? "")?.name ?? STILL_NAME}</span>
                   <span className="w-16 text-right text-muted-foreground">{c.duration.toFixed(1)} s</span>
                 </li>
               ))}

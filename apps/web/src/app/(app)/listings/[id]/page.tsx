@@ -30,12 +30,14 @@ export default async function ListingPage({
   const { data: listing } = await supabase.from("listings").select("*").eq("id", id).maybeSingle();
   if (!listing) notFound();
   const [{ data: photos }, { data: access }] = await Promise.all([
-    supabase.from("media_assets").select("id,storage_path,file_name").eq("listing_id", id).eq("kind", "photo").order("sort_order"),
+    supabase.from("media_assets").select("id,storage_path,thumbnail_path,file_name").eq("listing_id", id).eq("kind", "photo").order("sort_order"),
     supabase.rpc("listing_access", { p_listing: id }),
   ]);
   // Short-lived signed links, created as this person (storage RLS applies).
-  const urls = await signedUrlMap(BUCKETS.listingMedia, (photos ?? []).map((p) => p.storage_path), 3600);
-  const managed = (photos ?? []).map((p) => ({ id: p.id, url: urls[p.storage_path] ?? null, file_name: p.file_name }));
+  const urls = await signedUrlMap(BUCKETS.listingMedia, (photos ?? []).flatMap((p) => [p.storage_path, p.thumbnail_path ?? ""]), 3600);
+  const managed = (photos ?? []).map((p) => ({
+    id: p.id, url: urls[p.storage_path] ?? null, thumb: (p.thumbnail_path && urls[p.thumbnail_path]) || null, file_name: p.file_name,
+  }));
   const title = listing.address_line || "Untitled listing";
 
   if (access === "edit") {

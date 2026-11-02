@@ -86,6 +86,19 @@ export const planSchema = z.object({
     volume: z.number().min(0).max(1),
     fadeOut: z.boolean(),
   }),
+  /** Easy Mode choices this plan was built from; `customized` turns true after Advanced edits. */
+  easy: z.object({
+    style: z.string().max(40),
+    duration: z.number().int().min(5).max(120),
+    aspect: z.enum(ASPECTS),
+    musicAssetId: uuid.nullable(),
+    showBranding: z.boolean(),
+    aiEffects: z.boolean(),
+    customized: z.boolean(),
+    /** Photo order and photos left out, as chosen in Easy Mode. */
+    order: z.array(uuid).max(60).optional(),
+    skipped: z.array(uuid).max(60).optional(),
+  }).optional(),
 }).superRefine((p, ctx) => {
   const sceneIds = new Set(p.scenes.map((s) => s.id));
   if (sceneIds.size !== p.scenes.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Scene ids must be unique", path: ["scenes"] });
@@ -100,7 +113,7 @@ export type Scene = z.infer<typeof sceneSchema>;
 export type TextOverlay = z.infer<typeof textSchema>;
 export type EditPlan = z.infer<typeof planSchema>;
 
-export interface PlanPhoto { id: string; storage_path: string; file_name: string; width: number | null; height: number | null }
+export interface PlanPhoto { id: string; storage_path: string; file_name: string; width: number | null; height: number | null; thumbnail_path?: string | null }
 export interface PlanMusic { id: string; storage_path: string; file_name: string; duration_seconds: number | null }
 export interface PlanBrand { primary_color: string; heading_font: string; body_font: string }
 

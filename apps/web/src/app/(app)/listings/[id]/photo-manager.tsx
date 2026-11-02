@@ -6,27 +6,16 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createClient } from "@/lib/supabase/client";
-import { BUCKETS, PHOTO_MIME_TYPES, checkPhotoFile, listingPhotoPath } from "@/lib/storage";
+import { PHOTO_MIME_TYPES, checkPhotoFile } from "@/lib/storage";
+import { uploadListingPhoto } from "@/lib/photo-upload";
 import { MAX_PHOTOS, MIN_PHOTOS, moveItem, planUpload } from "@/lib/listings";
 import { cn } from "@/lib/utils";
 import { deletePhoto, registerPhotos, reorderPhotos, replacePhoto, setMainPhoto } from "../actions";
 
-export interface ManagedPhoto { id: string; url: string | null; file_name: string }
+export interface ManagedPhoto { id: string; url: string | null; thumb?: string | null; file_name: string }
 interface Uploading { key: string; name: string; preview: string; state: "waiting" | "uploading" | "done" | "failed" }
 
 const PARALLEL_UPLOADS = 3;
-
-async function imageSize(file: File): Promise<{ width: number | null; height: number | null }> {
-  try {
-    const bmp = await createImageBitmap(file);
-    const size = { width: bmp.width, height: bmp.height };
-    bmp.close();
-    return size;
-  } catch {
-    return { width: null, height: null }; // e.g. HEIC in browsers that can't decode it
-  }
-}
 
 export function PhotoManager({
   orgId, listingId, photos: initial, coverId: initialCover,
@@ -51,11 +40,7 @@ export function PhotoManager({
   const room = MAX_PHOTOS - count;
 
   async function uploadOne(file: File) {
-    const supabase = createClient();
-    const path = listingPhotoPath(orgId, listingId, crypto.randomUUID(), file.type);
-    const { error } = await supabase.storage.from(BUCKETS.listingMedia).upload(path, file, { contentType: file.type, upsert: false, cacheControl: "3600" });
-    if (error) throw new Error(file.name);
-    return { path, file_name: file.name, mime_type: file.type, size_bytes: file.size, ...(await imageSize(file)) };
+    return uploadListingPhoto(orgId, listingId, file);
   }
 
   async function addFiles(list: FileList | File[] | null) {
@@ -222,7 +207,7 @@ export function PhotoManager({
                 <button type="button" className="relative block" onClick={() => setPreview(i)} aria-label={`Preview photo ${i + 1}`}>
                   {p.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.url} alt={`Photo ${i + 1}`} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                    <img src={p.thumb ?? p.url} alt={`Photo ${i + 1}`} className="aspect-[4/3] w-full object-cover" loading="lazy" />
                   ) : (
                     <span className="flex aspect-[4/3] items-center justify-center bg-muted text-sm text-muted-foreground">Preview not available</span>
                   )}

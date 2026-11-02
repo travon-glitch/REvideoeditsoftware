@@ -140,6 +140,13 @@ export const listingDraftSchema = z.object({
   }
 });
 
+/** The listing details Easy Mode step 3 can change (same rules as the listing form). */
+export const EASY_DETAIL_FIELDS = ["address_line", "city", "state", "price", "agent_name", "brokerage", "contact_phone", "contact_email"] as const;
+export const easyDetailsSchema = listingDraftSchema.innerType().pick({
+  address_line: true, city: true, state: true, price: true, agent_name: true, brokerage: true, contact_phone: true, contact_email: true,
+});
+export type EasyDetailsInput = z.input<typeof easyDetailsSchema>;
+
 /** Kept for code that still validates a complete listing. */
 export const listingSchema = listingDraftSchema;
 export type ListingInput = z.infer<typeof listingSchema>;
@@ -240,6 +247,7 @@ export const uiModeSchema = z.enum(["easy", "advanced"]);
 
 export const replacePhotoSchema = z.object({
   asset_id: z.string().uuid(),
+  thumb_path: z.string().max(300).nullable().optional(),
   path: z.string().max(300),
   file_name: z.string().max(260),
   mime_type: z.string().max(100),
@@ -267,6 +275,7 @@ export const registerPhotosSchema = z.object({
         size_bytes: z.number().int().nonnegative(),
         width: z.number().int().positive().nullable().optional(),
         height: z.number().int().positive().nullable().optional(),
+        thumb_path: z.string().max(300).nullable().optional(),
       }),
     )
     .min(1)

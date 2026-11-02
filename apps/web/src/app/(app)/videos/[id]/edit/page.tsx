@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Wand2 } from "lucide-react";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { BUCKETS, isUuid } from "@/lib/storage";
@@ -31,13 +31,16 @@ export default async function EditVideoPage({ params }: { params: Promise<{ id: 
   ]);
   const plan = currentPlan(project, listing, assets);
   const [photoUrls, musicUrls] = await Promise.all([
-    signedUrlMap(BUCKETS.listingMedia, assets.photos.map((p) => p.storage_path), 4 * 3600),
+    signedUrlMap(BUCKETS.listingMedia, assets.photos.flatMap((p) => [p.storage_path, p.thumbnail_path ?? ""]), 4 * 3600),
     signedUrlMap(BUCKETS.projectMedia, assets.music.map((m) => m.storage_path), 4 * 3600),
   ]);
 
   return (
     <div className="flex flex-col gap-6">
-      <Button variant="ghost" asChild className="self-start"><Link href={`/videos/${id}`}><ArrowLeft aria-hidden="true" />Back to video</Link></Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="ghost" asChild><Link href={`/videos/${id}`}><ArrowLeft aria-hidden="true" />Back to video</Link></Button>
+        {project.listing_id ? <Button variant="outline" asChild><Link href={`/create?project=${id}&step=4`}><Wand2 aria-hidden="true" />Back to Easy Mode</Link></Button> : null}
+      </div>
       <PageHeader title={project.title} description={listing ? `From ${listing.address_line || "your listing"} · changes save automatically` : undefined} />
       {assets.photos.length === 0 ? (
         <p className="text-base text-muted-foreground">This video&apos;s listing has no photos. Add photos to the listing first.</p>
@@ -47,7 +50,9 @@ export default async function EditVideoPage({ params }: { params: Promise<{ id: 
           orgId={ctx.organization.id}
           initialPlan={plan}
           initialRevision={project.revision}
-          photos={assets.photos.map((p) => ({ id: p.id, url: photoUrls[p.storage_path] ?? null, file_name: p.file_name }))}
+          photos={assets.photos.map((p) => ({
+            id: p.id, url: photoUrls[p.storage_path] ?? null, thumb: (p.thumbnail_path && photoUrls[p.thumbnail_path]) || null, file_name: p.file_name,
+          }))}
           initialMusic={assets.music.map((m) => ({ ...m, url: musicUrls[m.storage_path] ?? null }))}
           initialRenders={(renders ?? []) as EditorRender[]}
           brandColor={ctx.brandKit?.primary_color ?? "#1D4ED8"}

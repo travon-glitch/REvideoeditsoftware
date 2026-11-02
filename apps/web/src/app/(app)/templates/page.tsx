@@ -37,7 +37,7 @@ export default async function TemplatesPage() {
               </CardContent>
               {canCreate ? (
                 <CardFooter className="mt-auto">
-                  <Button asChild variant="outline" className="w-full"><Link href="/create">Use this style</Link></Button>
+                  <Button asChild variant="outline" className="w-full"><Link href={`/create?style=${t.slug}`}>Use this style</Link></Button>
                 </CardFooter>
               ) : null}
             </Card>

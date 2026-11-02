@@ -18,7 +18,7 @@ export interface EditorAssets {
 export async function loadProjectAssets(db: Db, project: Pick<VideoProjectRow, "id" | "listing_id">): Promise<EditorAssets> {
   const [photos, music] = await Promise.all([
     project.listing_id
-      ? db.from("media_assets").select("id,storage_path,file_name,width,height").eq("listing_id", project.listing_id).eq("kind", "photo").order("sort_order")
+      ? db.from("media_assets").select("id,storage_path,thumbnail_path,file_name,width,height").eq("listing_id", project.listing_id).eq("kind", "photo").order("sort_order")
       : Promise.resolve({ data: [] as PlanPhoto[] }),
     db.from("media_assets").select("id,storage_path,file_name,duration_seconds").eq("project_id", project.id).eq("kind", "audio").eq("bucket", BUCKETS.projectMedia).order("created_at"),
   ]);

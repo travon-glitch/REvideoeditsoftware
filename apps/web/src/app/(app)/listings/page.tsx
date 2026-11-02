@@ -25,14 +25,14 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
   const { data: listings } = await supabase.from("listings").select("*").order("updated_at", { ascending: false }).limit(200);
   const ids = (listings ?? []).map((l) => l.id);
   const { data: photos } = ids.length
-    ? await supabase.from("media_assets").select("id,listing_id,storage_path").in("listing_id", ids).eq("kind", "photo")
+    ? await supabase.from("media_assets").select("id,listing_id,storage_path,thumbnail_path").in("listing_id", ids).eq("kind", "photo")
     : { data: [] };
   const photoCount = new Map<string, number>();
   const coverPath = new Map<string, string>();
   for (const p of photos ?? []) if (p.listing_id) photoCount.set(p.listing_id, (photoCount.get(p.listing_id) ?? 0) + 1);
   for (const l of listings ?? []) {
     const cover = (photos ?? []).find((p) => p.id === l.cover_asset_id);
-    if (cover) coverPath.set(l.id, cover.storage_path);
+    if (cover) coverPath.set(l.id, cover.thumbnail_path ?? cover.storage_path);
   }
   const thumbs = await signedUrlMap(BUCKETS.listingMedia, [...coverPath.values()], 3600);
   const canCreate = can(ctx.profile.role, "listings.create");

@@ -6,7 +6,7 @@ import { authorizeAction, type ActionResult } from "@/lib/auth/session";
 import {
   assignListingSchema, fieldErrors, formDataToObject, listingDraftSchema, registerPhotosSchema, reorderSchema, replacePhotoSchema,
 } from "@/lib/validation";
-import { BUCKETS, MAX_PHOTO_BYTES, PHOTO_MIME_TYPES, cleanFileName, isListingPhotoPathFor, isUuid } from "@/lib/storage";
+import { BUCKETS, MAX_PHOTO_BYTES, PHOTO_MIME_TYPES, cleanFileName, isListingPhotoPathFor, isListingThumbPathFor, isUuid } from "@/lib/storage";
 import { MAX_PHOTOS } from "@/lib/listings";
 
 /*
@@ -75,11 +75,11 @@ export async function deleteListing(listingId: string): Promise<ActionResult> {
   if (!auth.ok) return auth.result;
   if (!isUuid(listingId)) return { ok: false, message: "Listing not found." };
   const supabase = await createClient();
-  const { data: assets } = await supabase.from("media_assets").select("storage_path").eq("listing_id", listingId).eq("bucket", BUCKETS.listingMedia);
+  const { data: assets } = await supabase.from("media_assets").select("storage_path,thumbnail_path").eq("listing_id", listingId).eq("bucket", BUCKETS.listingMedia);
   const { data, error } = await supabase.from("listings").delete().eq("id", listingId).select("id");
   if (error || !data || data.length === 0) return { ok: false, message: "Only the person who added this listing can delete it." };
   if (assets && assets.length > 0) {
-    await supabase.storage.from(BUCKETS.listingMedia).remove(assets.map((a) => a.storage_path));
+    await supabase.storage.from(BUCKETS.listingMedia).remove(assets.flatMap((a) => [a.storage_path, a.thumbnail_path ?? ""]).filter(Boolean));
   }
   revalidatePath("/listings");
   redirect("/listings?deleted=1");
@@ -110,6 +110,9 @@ export async function registerPhotos(input: unknown): Promise<ActionResult<{ cou
   const supabase = await createClient();
   const present = await objectsInListingFolder(supabase, orgId, listing_id);
   if (files.some((f) => !present.has(f.path))) return { ok: false, message: "Some photos didn't finish uploading. Please try again." };
+  // Thumbnails are optional (e.g. HEIC); keep one only if it is in this listing's folder and really uploaded.
+  const thumbFor = (f: { thumb_path?: string | null }) =>
+    f.thumb_path && isListingThumbPathFor(f.thumb_path, orgId, listing_id) && present.has(f.thumb_path) ? f.thumb_path : null;
 
   const { data: last } = await supabase.from("media_assets").select("sort_order").eq("listing_id", listing_id)
     .order("sort_order", { ascending: false }).limit(1);
@@ -127,11 +130,12 @@ export async function registerPhotos(input: unknown): Promise<ActionResult<{ cou
       size_bytes: f.size_bytes,
       width: f.width ?? null,
       height: f.height ?? null,
+      thumbnail_path: thumbFor(f),
       sort_order: start + i,
     })),
   );
   if (error) {
-    await supabase.storage.from(BUCKETS.listingMedia).remove(files.map((f) => f.path));
+    await supabase.storage.from(BUCKETS.listingMedia).remove(files.flatMap((f) => [f.path, f.thumb_path ?? ""]).filter(Boolean));
     return { ok: false, message: friendly(error.message, "We couldn't save the photos. Please try again.") };
   }
 
@@ -154,21 +158,22 @@ export async function replacePhoto(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, message: "Upload details were not valid." };
   const f = parsed.data;
   const supabase = await createClient();
-  const { data: asset } = await supabase.from("media_assets").select("id,listing_id,storage_path").eq("id", f.asset_id).maybeSingle();
+  const { data: asset } = await supabase.from("media_assets").select("id,listing_id,storage_path,thumbnail_path").eq("id", f.asset_id).maybeSingle();
   if (!asset?.listing_id) return { ok: false, message: "Photo not found." };
   if (!validPhotoFile(f, auth.ctx.organization.id, asset.listing_id)) return { ok: false, message: "That file is not a supported photo." };
   const present = await objectsInListingFolder(supabase, auth.ctx.organization.id, asset.listing_id);
   if (!present.has(f.path)) return { ok: false, message: "The new photo didn't finish uploading." };
 
+  const thumb = f.thumb_path && isListingThumbPathFor(f.thumb_path, auth.ctx.organization.id, asset.listing_id) && present.has(f.thumb_path) ? f.thumb_path : null;
   const { data, error } = await supabase.from("media_assets").update({
     storage_path: f.path, file_name: cleanFileName(f.file_name), mime_type: f.mime_type, size_bytes: f.size_bytes,
-    width: f.width ?? null, height: f.height ?? null,
+    width: f.width ?? null, height: f.height ?? null, thumbnail_path: thumb,
   }).eq("id", f.asset_id).select("id");
   if (error || !data || data.length === 0) {
     await supabase.storage.from(BUCKETS.listingMedia).remove([f.path]);
     return { ok: false, message: "You don't have permission to change this photo." };
   }
-  await supabase.storage.from(BUCKETS.listingMedia).remove([asset.storage_path]);
+  await supabase.storage.from(BUCKETS.listingMedia).remove([asset.storage_path, asset.thumbnail_path ?? ""].filter(Boolean));
   revalidatePath(`/listings/${asset.listing_id}`);
   return { ok: true, message: "Photo replaced." };
 }
@@ -202,10 +207,10 @@ export async function deletePhoto(assetId: string): Promise<ActionResult> {
   if (!auth.ok) return auth.result;
   if (!isUuid(assetId)) return { ok: false, message: "Photo not found." };
   const supabase = await createClient();
-  const { data, error } = await supabase.from("media_assets").delete().eq("id", assetId).select("storage_path,listing_id,bucket");
+  const { data, error } = await supabase.from("media_assets").delete().eq("id", assetId).select("storage_path,thumbnail_path,listing_id,bucket");
   const row = data?.[0];
   if (error || !row) return { ok: false, message: "You don't have permission to remove this photo." };
-  await supabase.storage.from(row.bucket).remove([row.storage_path]);
+  await supabase.storage.from(row.bucket).remove([row.storage_path, row.thumbnail_path ?? ""].filter(Boolean));
   if (row.listing_id) revalidatePath(`/listings/${row.listing_id}`);
   return { ok: true, message: "Photo removed." };
 }

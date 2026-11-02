@@ -54,8 +54,8 @@ beforeAll(async () => {
 
 describe("migration", () => {
   it("creates the built-in templates and private buckets", async () => {
-    const t = await db.query<{ n: number }>(`select count(*)::int n from public.video_templates where organization_id is null`);
-    expect(t.rows[0]!.n).toBe(5);
+    const t = await db.query<{ slug: string }>(`select slug from public.video_templates where organization_id is null and is_active order by sort_order`);
+    expect(t.rows.map((r) => r.slug)).toEqual(["luxury", "modern", "just-listed", "open-house", "social-reel", "highlights"]);
     const b = await db.query<{ id: string; public: boolean }>(`select id, public from storage.buckets order by id`);
     expect(b.rows).toEqual([
       { id: "brand-assets", public: false }, { id: "listing-media", public: false },

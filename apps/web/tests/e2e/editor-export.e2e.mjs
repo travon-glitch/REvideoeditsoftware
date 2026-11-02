@@ -65,7 +65,16 @@ test("15 photos → editor → edits → real 30-second MP4 download", { skip, t
   await page.getByRole("button", { name: "Next: Save and Continue" }).click();
   await page.getByRole("button", { name: "Save and create a video" }).click();
   await page.waitForURL(/\/create\?listing=/);
-  await page.getByRole("button", { name: "Create and open the editor" }).click();
+  // Easy Mode wizard: step 1 already has the photos → choose a style → customize → storyboard
+  await page.getByRole("button", { name: "Next: Choose a style" }).click();
+  await page.waitForURL(/\/create\?project=[0-9a-f-]{36}&step=2/);
+  await page.getByRole("radio", { name: /Modern/ }).click();
+  await page.getByRole("button", { name: "Next: Customize" }).click();
+  await page.getByRole("radio", { name: /Standard/ }).click();
+  await page.getByRole("button", { name: "Next: Create video" }).click();
+  await page.getByText("All changes saved").waitFor({ timeout: 15_000 });
+  // then fine-tune the same project in the Advanced editor
+  await page.getByRole("link", { name: "Fine-tune in Advanced editor" }).click();
   await page.waitForURL(/\/videos\/[0-9a-f-]{36}\/edit/);
   await page.getByText("15 scenes · 30.0 seconds").waitFor();
 

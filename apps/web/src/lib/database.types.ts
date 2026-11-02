@@ -56,7 +56,7 @@ export type MediaAssetRow = {
   bucket: "listing-media" | "brand-assets" | "video-exports" | "project-media"; storage_path: string; file_name: string;
   mime_type: string; size_bytes: number; width: number | null; height: number | null;
   duration_seconds: number | null; room_label: string | null; sort_order: number; created_at: string;
-  project_id: string | null;
+  project_id: string | null; thumbnail_path: string | null;
 };
 export type VideoTemplateRow = {
   id: string; organization_id: string | null; slug: string; name: string; description: string;

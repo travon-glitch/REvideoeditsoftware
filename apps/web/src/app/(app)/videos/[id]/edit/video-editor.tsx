@@ -3,24 +3,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, CircleCheck, Download, GripVertical, LoaderCircle, Music, Plus, Trash2, TriangleAlert, Type, Upload, Wand2,
 } from "lucide-react";
-import { CAMERA_MOVES } from "@lvs/camera-presets";
+import { CAMERA_MOVES, STILL_NAME } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
-import { BUCKETS, MUSIC_MIME_TYPES, checkMusicFile, projectMusicPath } from "@/lib/storage";
+import { MUSIC_MIME_TYPES } from "@/lib/storage";
+import { uploadProjectMusic } from "@/lib/music-upload";
 import { moveItem } from "@/lib/listings";
 import {
   ASPECTS, ASPECT_LABELS, FIRST_SCENE, LAST_SCENE, MAX_SCENES, MAX_TEXTS, STILL, TEXT_POSITIONS, TEXT_STYLES, TEXT_STYLE_LABELS,
   TRANSITIONS, TRANSITION_LABELS, fitToDuration, totalDuration, type Aspect, type EditPlan, type TextOverlay,
 } from "@/lib/video/plan";
 import { cn } from "@/lib/utils";
-import { PreviewPlayer } from "./preview-player";
+import { useHistory } from "@/lib/use-history";
+import { UndoRedo } from "@/components/undo-redo";
+import { PreviewPlayer } from "@/components/video/preview-player";
 
-export interface EditorPhoto { id: string; url: string | null; file_name: string }
+export interface EditorPhoto { id: string; url: string | null; thumb?: string | null; file_name: string }
 export interface EditorMusic { id: string; url: string | null; file_name: string; duration_seconds: number | null }
 export interface EditorRender {
   id: string; aspect: Aspect; status: "queued" | "running" | "succeeded" | "failed" | "cancelled"; progress: number;
@@ -39,7 +41,8 @@ export function VideoEditor({
   projectId: string; orgId: string; initialPlan: EditPlan; initialRevision: number; photos: EditorPhoto[];
   initialMusic: EditorMusic[]; initialRenders: EditorRender[]; brandColor: string; canDownload: boolean;
 }) {
-  const [plan, setPlan] = useState(initialPlan);
+  const history = useHistory(initialPlan);
+  const plan = history.value;
   const [save, setSave] = useState<SaveState>({ kind: "saved" });
   const [tab, setTab] = useState<Tab>("scenes");
   const [music, setMusic] = useState(initialMusic);
@@ -55,6 +58,7 @@ export function VideoEditor({
   latest.current = plan;
 
   const photoUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, p.url])), [photos]);
+  const thumbUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, p.thumb ?? null])), [photos]);
   const photoIndex = useMemo(() => new Map(photos.map((p, i) => [p.id, i + 1])), [photos]);
   const total = totalDuration(plan);
 
@@ -101,7 +105,11 @@ export function VideoEditor({
   }, [active, projectId]);
 
   /* ── Plan edits ───────────────────────────────────────────────────── */
-  const update = (fn: (p: EditPlan) => EditPlan) => setPlan((p) => fn(structuredClone(p)));
+  /** Every Advanced change is undoable; it also marks an Easy Mode project as hand-edited. */
+  const update = (fn: (p: EditPlan) => EditPlan, mergeKey?: string) => history.set((p) => {
+    const next = fn(structuredClone(p));
+    return next.easy ? { ...next, easy: { ...next.easy, customized: true } } : next;
+  }, mergeKey);
   const setScene = (i: number, patch: Partial<EditPlan["scenes"][number]>) => update((p) => { p.scenes[i] = { ...p.scenes[i]!, ...patch }; return p; });
   const moveScene = (from: number, to: number) => update((p) => ({ ...p, scenes: moveItem(p.scenes, from, to) }));
   const removeScene = (i: number) => update((p) => {
@@ -110,7 +118,7 @@ export function VideoEditor({
   });
   const unused = photos.filter((ph) => !plan.scenes.some((s) => s.assetId === ph.id));
   const addScene = (assetId: string) => update((p) => ({ ...p, scenes: [...p.scenes, { id: uid("s"), assetId, move: "push_in", duration: 2 }] }));
-  const setText = (id: string, patch: Partial<TextOverlay>) => update((p) => ({ ...p, texts: p.texts.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+  const setText = (id: string, patch: Partial<TextOverlay>, mergeKey?: string) => update((p) => ({ ...p, texts: p.texts.map((t) => (t.id === id ? { ...t, ...patch } : t)) }), mergeKey);
   const addText = () => update((p) => ({
     ...p, texts: [...p.texts, { id: uid("t"), text: "Your text here", sceneId: p.scenes[0]!.id, style: "caption", position: "bottom", duration: null }],
   }));
@@ -120,27 +128,11 @@ export function VideoEditor({
   const [musicMsg, setMusicMsg] = useState<string | null>(null);
   async function uploadMusic(file: File | undefined) {
     if (!file) return;
-    const check = checkMusicFile(file);
-    if (!check.ok) { setMusicMsg(check.reason); return; }
     setMusicBusy(true); setMusicMsg(null);
     try {
-      const duration = await new Promise<number | null>((ok) => {
-        const a = new Audio(); const u = URL.createObjectURL(file);
-        a.onloadedmetadata = () => { URL.revokeObjectURL(u); ok(Number.isFinite(a.duration) ? a.duration : null); };
-        a.onerror = () => { URL.revokeObjectURL(u); ok(null); };
-        a.src = u;
-      });
-      const path = projectMusicPath(orgId, projectId, crypto.randomUUID(), file.type);
-      const { error } = await createClient().storage.from(BUCKETS.projectMedia).upload(path, file, { contentType: file.type, upsert: false });
-      if (error) throw new Error("The music couldn't be uploaded.");
-      const res = await fetch(`/api/projects/${projectId}/music`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path, file_name: file.name, mime_type: file.type, size_bytes: file.size, duration_seconds: duration }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "The music couldn't be added.");
-      setMusic((m) => [...m, body.music]);
-      update((p) => ({ ...p, music: { ...p.music, assetId: body.music.id } }));
+      const added = await uploadProjectMusic(orgId, projectId, file);
+      setMusic((m) => [...m, added]);
+      update((p) => ({ ...p, music: { ...p.music, assetId: added.id } }));
       setMusicMsg(`Added “${file.name}”.`);
     } catch (e) {
       setMusicMsg(e instanceof Error ? e.message : "The music couldn't be added.");
@@ -169,7 +161,10 @@ export function VideoEditor({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SaveBadge state={save} onReload={() => window.location.reload()} />
-        <p className="text-base text-muted-foreground">{plan.scenes.length} scenes · {total.toFixed(1)} seconds</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <p className="text-base text-muted-foreground">{plan.scenes.length} scenes · {total.toFixed(1)} seconds</p>
+          <UndoRedo onUndo={history.undo} onRedo={history.redo} canUndo={history.canUndo} canRedo={history.canRedo} />
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -255,14 +250,14 @@ export function VideoEditor({
                       <GripVertical className="size-5 shrink-0 cursor-grab text-muted-foreground" aria-hidden="true" />
                       {photoUrls[s.assetId] ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={photoUrls[s.assetId]!} alt="" className="h-14 w-20 shrink-0 rounded-md object-cover" />
+                        <img src={thumbUrls[s.assetId] ?? photoUrls[s.assetId]!} alt="" className="h-14 w-20 shrink-0 rounded-md object-cover" />
                       ) : <span className="h-14 w-20 shrink-0 rounded-md bg-muted" />}
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="text-sm font-semibold">Scene {i + 1} <span className="font-normal text-muted-foreground">· photo {photoIndex.get(s.assetId)}</span></span>
                         <div className="flex flex-wrap gap-2">
                           <label className="sr-only" htmlFor={`move-${s.id}`}>Camera move for scene {i + 1}</label>
                           <NativeSelect id={`move-${s.id}`} className="h-9 w-40 text-sm" value={s.move} onChange={(e) => setScene(i, { move: e.target.value })}>
-                            <option value={STILL}>Still</option>
+                            <option value={STILL}>{STILL_NAME}</option>
                             {CAMERA_MOVES.map((m) => <option key={m.id} value={m.id}>{m.name}{m.aiOnly ? " (simple)" : ""}</option>)}
                           </NativeSelect>
                           <label className="sr-only" htmlFor={`dur-${s.id}`}>Length of scene {i + 1}</label>
@@ -303,7 +298,7 @@ export function VideoEditor({
                       </Button>
                     </div>
                     <label className="sr-only" htmlFor={`text-${t.id}`}>Text</label>
-                    <Textarea id={`text-${t.id}`} rows={2} maxLength={200} value={t.text} onChange={(e) => setText(t.id, { text: e.target.value })} className="min-h-0" />
+                    <Textarea id={`text-${t.id}`} rows={2} maxLength={200} value={t.text} onChange={(e) => setText(t.id, { text: e.target.value }, `text-${t.id}`)} className="min-h-0" />
                     <div className="grid grid-cols-2 gap-3">
                       <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">Show on
                         <NativeSelect className="h-10 text-sm text-foreground" value={t.sceneId} onChange={(e) => setText(t.id, { sceneId: e.target.value })}>
@@ -347,7 +342,7 @@ export function VideoEditor({
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="volume">Volume: {Math.round(plan.music.volume * 100)}%</Label>
                   <input id="volume" type="range" min={0} max={1} step={0.05} value={plan.music.volume}
-                    onChange={(e) => update((p) => ({ ...p, music: { ...p.music, volume: Number(e.target.value) } }))} className="accent-[hsl(var(--primary))]" />
+                    onChange={(e) => update((p) => ({ ...p, music: { ...p.music, volume: Number(e.target.value) } }), "volume")} className="accent-[hsl(var(--primary))]" />
                 </div>
                 <label className="flex min-h-11 items-center gap-3 text-base">
                   <input type="checkbox" className="size-5 accent-[hsl(var(--primary))]" checked={plan.music.fadeOut}
