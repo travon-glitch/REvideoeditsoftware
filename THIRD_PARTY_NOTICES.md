@@ -1,0 +1,33 @@
+# Third-party notices
+
+This private application includes code from the following open-source projects.
+
+## FableCut — MIT License
+
+- Source: https://github.com/ronak-create/FableCut
+- Revision: `579b08ec1a789baec5cbf06d7430373460508d09` (v1.18.0)
+- Location: `packages/fablecut-core/upstream/` (unmodified)
+- License text: `packages/fablecut-core/LICENSE` — Copyright (c) 2026 ronak-create
+
+Bundled fonts in `packages/fablecut-core/upstream/library/fonts/` are licensed under the SIL Open Font License 1.1
+(see `upstream/library/fonts/LICENSES.md`). **Before the editor is served to users (Stage 3), add the full OFL 1.1
+text and each family's copyright line here.**
+
+## Open-Generative-AI — MIT License
+
+- Source: https://github.com/Anil-matcha/Open-Generative-AI (upstream of avoltaire/open-generative-ai)
+- Revision: `84b29a55ff8bd536c7fdda5d80e2f120cac9d6e1` (licensed MIT since commit `1ff3667`)
+- File: `src/lib/promptUtils.js` → `packages/camera-presets/upstream/promptUtils.js` (unmodified)
+- License text: `packages/camera-presets/upstream/LICENSE` — Copyright (c) 2026 Open Generative AI Contributors
+
+## npm dependencies
+
+All runtime dependencies are MIT or ISC licensed at the pinned versions (Next.js, React, @supabase/*, Radix UI,
+class-variance-authority, clsx, tailwind-merge, lucide-react (ISC), zod, server-only). A generated SBOM with a CI
+license gate is planned (see `docs/IMPLEMENTATION_PLAN.md`, Phase 0).
+
+## Not included
+
+- ffmpeg.wasm core builds (GPL-2.0-or-later) — deliberately not used.
+- No code from `avoltaire/open-generative-ai` at its own revision (no LICENSE file there), from `Open-Poe-AI`, or from
+  Open-Generative-AI's preview images.

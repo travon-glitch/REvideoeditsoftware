@@ -1,0 +1,19 @@
+{
+  "name": "@lvs/fablecut-core",
+  "version": "1.18.0-lvs.0",
+  "private": true,
+  "description": "Vendored FableCut (MIT) — timeline, compositor and render engine. Integrated in a later stage; not served in Stage 2.",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "upstream/",
+    "UPSTREAM.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}

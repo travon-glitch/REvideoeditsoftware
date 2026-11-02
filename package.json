@@ -1,0 +1,23 @@
+{
+  "name": "listing-video-studio",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Private, company-owned AI real-estate video generator (internal use only).",
+  "workspaces": [
+    "apps/*",
+    "packages/camera-presets",
+    "packages/fablecut-core"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @lvs/web",
+    "build": "npm run build -w @lvs/web",
+    "start": "npm run start -w @lvs/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint -w @lvs/web",
+    "bootstrap:token": "npm run bootstrap:token -w @lvs/web"
+  },
+  "engines": {
+    "node": ">=20.18"
+  }
+}

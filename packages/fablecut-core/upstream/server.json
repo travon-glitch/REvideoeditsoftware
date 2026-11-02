@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ronak-create/fablecut",
+  "description": "Zero-dependency browser video editor AI agents drive via a JSON timeline over MCP; ffmpeg export.",
+  "title": "FableCut",
+  "repository": {
+    "url": "https://github.com/ronak-create/FableCut",
+    "source": "github"
+  },
+  "websiteUrl": "https://fablecut.space/",
+  "version": "1.18.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "fablecut",
+      "version": "1.18.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/ronak-create/FableCut/releases/download/v1.18.0/fablecut.mcpb",
+      "fileSha256": "d7d7ee330705416fdcc10a963912fe4695357c7f5876276aa892e26ed836adbb",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

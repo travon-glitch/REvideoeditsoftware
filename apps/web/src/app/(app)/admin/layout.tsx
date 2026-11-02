@@ -1,0 +1,28 @@
+import Link from "next/link";
+import { requirePermission } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
+
+/* Every page under /admin requires an administrator (checked on the server, and again by the database). */
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const ctx = await requirePermission("admin.access");
+  const tabs = [
+    { href: "/admin", label: "Overview" },
+    { href: "/admin/users", label: "Users" },
+    { href: "/admin/projects", label: "Company videos" },
+    { href: "/admin/audit", label: "Activity log" },
+    { href: "/admin/branding", label: "Branding" },
+    ...(can(ctx.profile.role, "settings.manage") ? [{ href: "/admin/settings", label: "System settings" }] : []),
+  ];
+  return (
+    <div className="flex flex-col gap-6">
+      <nav aria-label="Admin sections" className="flex flex-wrap gap-2">
+        {tabs.map((t) => (
+          <Link key={t.href} href={t.href} className="inline-flex min-h-11 items-center rounded-lg border bg-card px-4 text-base font-medium hover:border-primary/40 hover:bg-accent">
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+      {children}
+    </div>
+  );
+}

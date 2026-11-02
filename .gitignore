@@ -1,0 +1,21 @@
+# Upstream reference clones (read-only, never committed)
+/reference/
+
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+.DS_Store
+npm-debug.log*

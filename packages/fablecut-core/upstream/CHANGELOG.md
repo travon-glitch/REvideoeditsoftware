@@ -1,0 +1,1014 @@
+# Changelog
+
+All notable changes to FableCut are documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.18.0] - 2026-10-28
+
+### Added
+- **Beats.** The Inspector's **Beats** section on an audio or video clip finds
+  the music's tempo, a steady beat grid (fitted to the hits, so it doesn't drift
+  over a song) and the drop, and shows the beat as ticks across the timeline.
+  **Mark** puts a marker on every beat, **Snap cuts** rolls each cut on the
+  targeted video tracks onto the nearest beat (nothing else moves), and
+  **Re-cut** lays a track's clips back to back so each lasts 1, 2, 4, 8 or 16
+  beats. Each is one undo step. Agents use `fablecut_beats`, which keeps a
+  version before snapping or re-cutting.
+- **Reframe.** Make a 9:16, 1:1 or 4:5 copy of an edit whose shots follow the
+  subject: each full-frame shot is fitted to the new shape and a virtual camera
+  pans after what matters in it (motion, detail and colour, held in a dead
+  zone, eased, no faster than a pan speed), written as ordinary position keys.
+  From **New sequence…** (Follow the subject in each shot) or the Inspector's
+  **Reframe** section (Follow subject, Centre, Lively / Balanced / Steady).
+  Titles and clips placed by hand are left alone. Agents use `fablecut_reframe`.
+- **Highlights.** The best moments of long footage, cut into a short edit: every
+  half second of the timeline's video is scored for movement, sound louder than
+  around it and a clear picture; the best moments of a few seconds each go back
+  to back in a new sequence, in story order, never across a cut already in the
+  footage, their ends on quiet points. From the sequence menu's **Highlights…**
+  (15–90 s, any canvas, optionally following the subject). Agents use
+  `fablecut_highlights`.
+
+### Changed
+- The reference analyzer (`fablecut_analyze_reference`) now shares its beat
+  detector with Beats; its results are unchanged.
+
+### Fixed
+- **Undo after an agent edit.** An edit that reaches the open editor from
+  outside (an agent, another tab) is now an undo step of its own: Ctrl+Z takes
+  back that edit first and says so, and the next Ctrl+Z goes on to your own
+  edits. Before, Ctrl+Z replayed your previous step over it, so the agent's
+  change was lost along with yours. When an outside edit lands while your own
+  change is still unsaved, the outside edit wins as before, and Ctrl+Z now
+  puts your version back.
+- **Agent tools never write over what they couldn't read.** When the project
+  file can't be read just before an agent's edit is saved, the edit is refused
+  instead of being written as if nothing had changed.
+
+## [1.17.0] - 2026-10-26
+
+### Added
+- **Silence removal.** The inspector's **Silence** section on an audio or
+  video clip (or right-click → **Find silences**) listens to the take and
+  marks every pause on the timeline; **Cut** extracts them on the targeted
+  tracks in one undo step. Set how quiet counts as silence, the shortest
+  pause to cut, and how much quiet to keep beside each phrase so words
+  aren't clipped. Cuts land on whole frames, linked stems stay in step and
+  locked tracks (a music bed) keep running. Agents use the new
+  `fablecut_silence` tool: it reports the pauses, and with `cut:true` cuts
+  them in one revision after keeping a version of the project.
+- **Transcripts and text-based editing.** The new **Transcript** tab beside
+  the Inspector turns the speech on the timeline into words with times. It
+  runs Whisper in the browser: the model (77 MB, or 250 MB for the more
+  accurate one) downloads once, and the audio never leaves your machine.
+  Click a word to go there, select words and press Delete to cut them with
+  the pause after them, or find a phrase and cut every place it is said, in
+  one undo step. Transcripts are kept per file in `analysis/transcripts/`.
+  Agents use the new `fablecut_transcribe` tool: it reads the timeline's words
+  as timed lines, finds phrases, and with `cut:true` cuts them in one revision
+  after keeping a version of the project.
+- **Captions.** The Transcript tab's **Add captions** makes captions from
+  the transcript, timed word by word, in four styles: subtitle, karaoke,
+  highlight (the word being said in colour) and word pop. They are sized for
+  the canvas, break at pauses and sentences, and land on their own lane above
+  the edit. **SRT** and **VTT** download them, and **Import…** places a subtitle
+  file's captions. Text clips gain `wordTimes`, which word-pop, word-slide,
+  karaoke and the new `highlight` animation follow, and `highlightColor`.
+  Agents use the new `fablecut_captions` tool.
+- **Apple Silicon VideoToolbox export profiles** `videotoolbox-h264` and
+  `videotoolbox-hevc`. Enables hardware-accelerated H.264 and HEVC encode on
+  Apple Silicon. Also registers `h264_videotoolbox` and `hevc_videotoolbox` in
+  the delivery presets encoder list. Needs macOS on Apple Silicon and an ffmpeg
+  built with videotoolbox. (thanks @bradvatne, #128)
+
+### Changed
+- **Each level of the editor's layout has its own tone**: the app background,
+  panel bodies, the header bars and toolbars on top of each panel, and the
+  controls, darkest at the back, so the structure reads at a glance. The
+  timeline's lanes sit in a darker well under their track headers and ruler,
+  and Inspector sections are soft cards.
+
+## [1.16.0] - 2026-10-21
+
+### Added
+- **Projects.** One FableCut keeps many projects; `./project.json` stays the
+  open one, so tools and scripts are unchanged. The **Projects** dashboard
+  (top bar) lists them with a picture, size, frame rate and length, and
+  opens, creates (from Landscape, Vertical, Square, Portrait, 4K and 720p
+  canvases or a saved project template), duplicates, renames, tags, takes
+  notes on, archives and deletes them, and imports a project file from
+  elsewhere. Media, exports and the library are shared. Agents use the new
+  `fablecut_projects` tool; REST `GET` / `POST /api/projects`.
+- **Versions.** Saved copies of a project, never overwritten: **Ctrl/Cmd+S**
+  or **Save version** with a name and note, automatically every 10 minutes
+  while the project changes, and before an agent's first edit or a whole-project
+  rewrite. Compare a version with now (clips added / removed / changed, length,
+  media, settings), restore one (what was there is saved as a version first),
+  mark the final cut. **Download backup** carries every version and imports
+  back; an unreadable `project.json` at startup is kept aside and the newest
+  good copy restored. Agents use the new `fablecut_versions` tool; REST
+  `/api/versions`.
+- **Sequences.** Several timelines in one project — a 16:9 and a 9:16 cut,
+  cut-downs, alternatives — sharing its media and compositions, each with its
+  own canvas, frame rate, IN / OUT, markers, mix and delivery settings. The
+  menu at the left of the timeline toolbar opens, adds (empty or as a copy, at
+  any canvas), duplicates, renames and deletes them; each keeps its own undo
+  history for the session. Media and comps used in any sequence are counted and
+  protected. Agents use the new patch ops `addSequence`, `inSequence` (edit a
+  sequence without opening it), `openSequence`, `updateSequence` and
+  `removeSequence`.
+- **NVIDIA GPU export profiles** `nvenc-h264` and `nvenc-hevc`. They need an
+  NVIDIA card and an ffmpeg built with NVENC. (thanks @delirious6423, #118)
+
+### Changed
+- **Export decodes video with WebCodecs instead of seeking `<video>`**: about
+  5× faster (95.7 s → 18.8 s on a 28 s 720p project) and frame-exact. Files it
+  can't decode, and background-removal clips, keep the `<video>` path.
+  (thanks @delirious6423, #118)
+
+### Fixed
+- **Ctrl/Cmd+S** no longer also splits at the playhead and opens the browser's
+  Save dialog (it saves a version now).
+- **A relinked or replaced file mixes its new audio** in preview and export
+  (decoded audio was kept per media entry, not per file).
+- **Hardware-encoder profiles pass the export dry run.** It probed a 64×64
+  frame, which NVENC refuses; it now uses 256×144 and reports ffmpeg's reason.
+  (thanks @delirious6423, #118)
+
+## [1.15.0] - 2026-10-19
+
+### Added
+- **Agents can look at the footage.** `fablecut_frame` (MCP) and `GET /api/frame`
+  return a source frame, a contact sheet of evenly spaced frames, or the
+  composed timeline frame at a time, as a JPEG with a text line naming the
+  source, timestamps and clips on screen. `text:true` returns statistics
+  instead (luma levels on 0–1, dominant colours, texture, saturation and
+  per-cell motion) for agents without vision. Reading a local file by `path=`
+  requires the `X-FableCut-Client` header.
+- **Media management in the Project bin.** Each file's frame rate, codecs,
+  audio channels, sample rate, bitrate and size are read with ffprobe and
+  shown in the bin (`GET /api/media-info`). Search by name, codec, resolution
+  or `#tag`; show favorites, used / unused files, a kind, a tag or a
+  collection; sort by any of them or by how often a file is used; a list view
+  with metadata columns. Files can be starred, tagged and grouped into
+  collections. **Find timeline instances** lists every place a file is used
+  (comps included) and jumps there; **Reveal in project** goes from a clip to
+  its file. Agents: patch ops `updateMedia`, `setCollection`,
+  `removeCollection`; the compact view shows metadata, tags and usage.
+- **Offline media, relink and replace.** A missing file is marked offline in
+  the bin and on the timeline, and its clips show a "Media offline" slate in
+  the monitor and the export. **Relink…** finds moved files in the project
+  folders by name and size (or matches a chosen folder by name) and keeps
+  every clip's In point; **Replace file…** puts a new file behind a media
+  entry, trimming clips to fit. Agents: `relinkMedia` and `replaceMedia`
+  patch ops, `POST /api/relink/candidates`; offline files show in
+  `fablecut_status` and the compact view.
+- **Proxies.** Create a light H.264 copy (540p or 720p, frame-accurate,
+  short GOP) of heavy footage from the bin, made by ffmpeg in the
+  background with progress in the bin. With the monitor's **Proxy** button on
+  (the default), clips and the Source monitor play the proxy while you edit;
+  export, scopes and frame grabs always switch back to the originals. Proxies
+  are a cache in `analysis/proxies/`, tied to the source file's version.
+  Agents: `fablecut_proxy` (make, check, delete); `/api/proxy` endpoints and
+  SSE event `proxy`; the compact view shows `proxy:540p`.
+
+- **Delivery presets in the Export dialog.** YouTube, YouTube Shorts,
+  Instagram Reels, TikTok, X, LinkedIn, Master, Broadcast (ProRes 422 HQ, PCM
+  24-bit), Web, Archive (lossless FFV1) and Custom, with every setting as a
+  control: resolution and reframing (crop, fit or stretch to another shape),
+  frame rate, codec (H.264, HEVC, AV1, VP9, ProRes, DNxHR, XDCAM HD422, FFV1),
+  encoder (NVENC, Quick Sync and AMF when they work on the machine), CRF / VBR /
+  CBR, max rate, keyframe interval, encoder speed, pixel format, color,
+  container, audio codec / bitrate / rate / channels, a file-name template and
+  metadata. Presets can be saved for every project (`library/delivery/`). The
+  dialog warns about upscaling, crops, platform length / size / frame-rate
+  limits and estimates the file size. 4:2:2, 4:4:4, 10-bit and lossless
+  outputs get raw RGBA frames. Agents: `fablecut_export` takes `preset` and
+  `delivery`; `setProject {delivery}` pins a project default;
+  `fablecut_encode_profiles` lists the presets and the usable encoders.
+  Encoding profiles still work and sit at the bottom of the list.
+- **Batch export and an export queue.** A project keeps a list of outputs
+  (`project.outputs`; "+ Typical set" adds master, YouTube 1080p, a 9:16 reel,
+  a square and a 720p preview), and **Export checked** makes them all with one
+  render per frame rate and range (up to 8 outputs each): each frame is drawn once and
+  every output's ffmpeg encodes it, so four 1080p files take about as long as one. The queue runs outputs back to
+  back with progress, stop, retry and open; one failed output does not stop
+  the rest. An export frame of another shape no longer squeezes an output: a
+  16:9 file of a project framed for 9:16 reframes the whole canvas. Agents:
+  `fablecut_export {outputs:true | [...]}`, `setProject {outputs}`; REST
+  `/api/export/begin {deliveries:[...]}`.
+- **Loudness normalization and delivery checks.** A delivery can normalize the
+  mix to a loudness target (−14 streaming, −16 podcast, −23 EBU R128, −24
+  ATSC A/85) with a true-peak ceiling, using ffmpeg's two-pass `loudnorm`;
+  Broadcast does −23 LUFS / −1 dBTP by default. Every exported file is read
+  back with ffprobe and measured, and checked against what was asked: size,
+  frame rate, frame count, codec, color, audio, length, loudness, true peak and
+  the platform's file-size limit. The report shows in the export queue, after a
+  single export, and in the `fablecut_export` reply.
+
+### Changed
+- `/media/` serves files in subfolders of `media/` too.
+- **Chroma key, temperature, tint and RGB split run on the GPU** (WebGL2), in
+  preview and export: a 720p keyed frame went from 113 ms to 3.6 ms (RTX 4090)
+  and 123 ms to 12.5 ms (Intel UHD). Output matches the CPU loop within 1–2
+  levels (a few chroma-key edge pixels up to ~11). Without WebGL2, or on a
+  software rasterizer, the CPU loop still runs.
+- **The editor redraws once per project frame**, not on every display refresh
+  (240×/s on a 240 Hz panel). While paused it drops to 4 fps after 1.5 s idle.
+- **An idle editor sleeps**: the loop slows to a 4 fps timer and the audio
+  graph suspends 3 s after the last sound. Idle tab: 83% → 2.2% of a core.
+
+## [1.14.0] - 2026-10-12
+
+### Added
+- **Compositions (nested sequences).** `project.comps` holds timelines of their
+  own (size, length, tracks, clips); a `comp` clip places one, drawn like a
+  picture of the comp's size so transform, masks, mattes, blend and grade apply
+  to it as a whole, while the video and audio inside play and export as if on
+  the timeline. Comps nest 4 deep. In the editor: comps in the bin's Project
+  tab (drag to place, double-click to open), an open comp takes over the
+  timeline with a breadcrumb and Esc to go back, **Precompose** in the clip
+  menu, **New composition** in the Project tab menu, and a Composition section
+  in the Inspector.
+- Agents: `addComp`, `updateComp`, `removeComp`, `precompose` and `inComp`
+  patch ops; comps are validated and listed in the compact view.
+- **Animation presets.** 33 named animations (In, Out, At playhead, Loop) that
+  key a clip relative to where it sits and how big it is: scale and opacity
+  multiply, the rest add. Apply them from the Inspector's Motion section, and
+  save a clip's own keyframes as a preset in `library/presets/`.
+- **Templates.** Lower thirds (Bar, Underline, Boxes), logo animations (Ring
+  reveal, Slam, Lines) and social layouts (9:16 story, 1:1 quote, 16:9 end
+  card) in the bin's new Templates tab. Each placement is its own comp whose
+  text, colour and logo fields are edited in the Inspector; changing its length
+  keeps the exit at the end. Right-click a comp → Save as template keeps your
+  own in `library/templates/`. A placeholder logo ships in
+  `library/elements/`.
+- Agents: `applyPreset`, `addTemplate`, `setTemplate`, `savePreset` and
+  `saveTemplate` patch ops; `GET`/`POST /api/presets` and `/api/templates`;
+  the compact view shows a placed template's fields.
+- Hovering a comp clip on the timeline shows "Double-click to open" (and a
+  tooltip naming the comp or template).
+- **Motion paths.** Position keys (x and y keyed together) take bezier
+  handles (`pin` / `pout` on the keys), so a clip travels along a curve, paced
+  along the curve by its eases. The path shows on the monitor with a dot per
+  frame; drag keys and handles to shape it. **Smooth** / **Straight** in the
+  Inspector's Motion section, and **Auto-orient** turns the clip along the path.
+- **Motion blur.** `motionBlur` (shutter angle) and `motionBlurSamples` average
+  sub-frame samples of a moving clip, in preview and export alike; playback
+  uses as many samples as the frame time allows.
+- **Text on a path.** A title's `textPath` (a line, arc, circle, wave, any
+  shape outline or a pen path) carries the text, each letter turned with it;
+  further lines run on parallel curves below. `pathOffset` (keyframable)
+  slides it along, and every text animation plays along the path.
+- Agents: `setMotionPath` and `setTextPath` patch ops; the new props are
+  validated and shown in the compact view.
+- **Shape layers.** A new clip kind, `shape`, draws vector items in
+  `props.shapes`: rectangles (with rounded corners), ellipses, polygons, stars,
+  lines and bezier paths (open or closed), nested in groups. Each has a fill and
+  a stroke (width, caps, joins, dashes) and trim paths (`trimStart`, `trimEnd`,
+  `trimOffset`) for draw-ons; the layer's own trim props trim every path at once.
+  Every item value keys on its own, colours and path outlines included. In the
+  editor: a **Shapes** tab in the bin (or the Pen) and a Shape layer section, with items moved,
+  turned, resized and point-edited on the monitor.
+- **Null objects and parenting.** `kind: "null"` is an invisible clip that
+  carries a transform. Any visual clip can take a `parent` and then moves,
+  turns and scales with it, through chains of parents. Choosing a parent keeps
+  the clip where it is; right-click → **Parent to a new null** groups clips.
+- **Anchor point.** `anchorX` / `anchorY` on every visual clip set the point
+  position places and rotation and scale turn around. **✥ Move** drags it on
+  the monitor while the picture stays put.
+- Agents: `setShape`, `removeShape` and `setParent` patch ops; `props.shapes`
+  and `parent` are validated on `addClip` / `updateClip`; the compact view
+  lists shapes and parents. A `motion-graphics` skill covers the recipes.
+- **Agents can see, not just measure.** `fablecut_analyze_reference` gave
+  agents the *ears* of a reference edit (cuts, beats, BPM, energy, drop).
+  `fablecut_frame` gives them the *eyes* — it answers with a real image the
+  model can look at, instead of a number to infer from.
+  - `{path, t}` returns that exact frame of a source clip;
+    `{path, frames:12}` returns an **N-up contact sheet** across the clip in
+    one call (`from`/`to` to survey part of it), the cheap way to see what a
+    whole take holds. `{time}` with no `path` renders the **composed timeline**
+    through the editor's own compositor — graded, all tracks, identical to
+    export — so "is this grade right?" gets a visual answer.
+  - Every answer leads with a text line naming the source, the timestamp(s) and
+    what is on screen, so an agent always knows what it is looking at.
+  - `GET /api/frame?src=…&t=…[&w=][&q=][&frames=][&cols=][&from=][&to=]` is the
+    same thing over REST. Grabs are cached under `analysis/frames/` keyed by
+    source path, size and mtime, so a repeated request is free and an
+    overwritten file never serves a stale frame. Needs ffmpeg on PATH for the
+    source modes.
+  - The MCP layer now answers with content blocks rather than a bare string,
+    which is what lets a tool return an image at all.
+
+### Changed
+- The Keyboard shortcuts dialog is grouped into sections (Playback, Editing,
+  IN / OUT and markers, Bin and compositions, Masks, …) and has a filter box.
+
+### Fixed
+- Exports of clips with slow-motion speed ramps (or very busy frames: grades,
+  masks, blur) no longer fail with "presented frame timeout". A seek that lands
+  inside the source frame already on screen is accepted, and later tries wait
+  longer before giving up.
+
+## [1.13.0] - 2026-10-10
+
+### Added
+- **Masks.** Any video, image, SVG, text or adjustment clip can carry a stack of
+  masks (`props.masks`, up to 8): rectangle, ellipse, bezier (pen tool with
+  curve handles) and free-hand (a drawn outline fitted into an editable
+  bezier). Each has a mode (add, subtract, intersect, difference), invert,
+  opacity, feather and expansion, and every shape parameter can be keyframed,
+  bezier outlines included. Masks follow the clip's transform and render the
+  same in preview and export. The Inspector's **Masks** section draws and edits
+  them on the monitor and has a matte view.
+- Agents: patch ops `setMask`, `removeMask` and `setMaskKeys`; `props.masks`
+  is validated on `addClip` / `updateClip`; `fablecut_scopes {mask:{clip}}`
+  reports how much of the clip its masks keep; the compact project view lists
+  each clip's masks.
+- Color layers' masks can be bezier or free-hand too (**Draw** in the Color
+  tab, or `shape:"bezier"` / `"freehand"` in `setGradeLayer`).
+- **Track mattes.** A clip can be cut by the picture on another track (the
+  video track above by default): `props.matte` = `alpha`, `alpha-inverted`,
+  `luma` or `luma-inverted`, `props.matteTrack` to pick the track. The matte
+  track stops drawing while it is in use; the timeline marks both sides. In the
+  Inspector under **Blend**; agents use the `setMatte` patch op, and
+  `fablecut_scopes` lists each clip's matte and blend.
+- **Motion tracking.** Follow a point or a region of a video clip frame by
+  frame (template matching, sub-pixel, optionally with scale and rotation);
+  the track is stored on the clip (`props.tracks`). A mask's **◀ Back / On ▶**
+  buttons track what it covers and key its position (and scale / rotation);
+  the Inspector's **Tracking** section tracks points and **attaches** any
+  visual clip to a track as editable keyframes. Esc stops a running track.
+- Agents: the `fablecut_track` tool (track a point, a region or a mask, then
+  `apply` it to a mask or a clip) and the `removeTrack` patch op; tracks are
+  validated on `addClip` / `updateClip` and summarized in the compact view.
+- Blend modes: `color-burn`, `exclusion`, `hue`, `saturation`, `color` and
+  `luminosity` join the list (17 in all). `blend`, `matte` and `matteTrack` are
+  validated on `addClip` / `updateClip`.
+
+## [1.12.1] - 2026-10-08
+
+### Changed
+- Each GitHub release now publishes the matching `fablecut` package to npm
+  automatically, with provenance, through npm trusted publishing.
+
+## [1.12.0] - 2026-10-08
+
+### Added
+- **npm package.** `npx -y fablecut` starts the editor and `npx -y fablecut mcp`
+  runs the MCP server, so registering FableCut no longer needs a clone or a
+  file path: `claude mcp add -s user fablecut -- npx -y fablecut mcp`.
+  Installed from npm, projects, media and exports live in `~/FableCut`
+  (`FABLECUT_DATA_DIR` still overrides), so updates never touch them.
+- `fablecut_patch_project` takes an optional `baseRevision`: a patch planned
+  against an older revision is refused with a conflict and the current
+  revision instead of landing on top of a newer edit.
+
+## [1.11.0] - 2026-10-05
+
+### Added
+- **Color workspace.** An **Edit / Color** switch in the top bar. Color swaps
+  the media bin for live scopes of the program monitor (or of the export
+  frame, when one is set) — **waveform, RGB parade, vectorscope** (75 %
+  targets and a skin-tone line) and **histogram**, two at a time — and opens
+  the new **Color** tab beside the Inspector and Mixer.
+- **Color grading** (`props.grade`) on video, image, SVG and adjustment
+  clips, run on the GPU (WebGL2, with a CPU fallback) before the clip is
+  composited, so preview and export match: **lift / gamma / gain / offset
+  wheels** with master sliders, **exposure** and **white balance** in linear
+  light, a **white-balance picker** (click something white or grey in the
+  monitor), **blacks / shadows / midtones / highlights / whites**, log-style
+  **contrast with a pivot**, soft **rolloff** into black and white, and
+  **saturation**. On / off to compare, Reset, and Copy / Paste a grade onto
+  every selected clip. The existing filter sliders and presets still apply on
+  top.
+- **Curves** in the Color tab: a luma curve (brightness only) and R / G / B
+  curves, plus **hue vs hue**, **hue vs saturation**, **hue vs luma** and
+  **saturation vs luma**. Click to add a point, drag to move it, double-click
+  to remove it; **Pick** marks a colour from the monitor on the curve. A hue
+  curve with one point is a band around that hue. Stored in `props.grade`
+  (`curves`, `hueHue`, `hueSat`, `hueLuma`, `satLuma`) and set by agents with
+  `setGrade`.
+- **Layers (secondaries)** in the Color tab: corrections limited by an HSL
+  **qualifier** (hue / saturation / luma ranges with softness, invert, and a
+  Pick that selects a colour from the monitor) and / or a **mask** (ellipse,
+  rectangle or polygon; feather, invert, rotation), dragged on the monitor
+  and keyframable. **Matte** shows what a layer selects. Each layer has its
+  own wheels, sliders and curves; up to 8 stack in order. Stored in
+  `props.grade.layers`. Agents edit one layer with the patch op
+  **`setGradeLayer`** and check it with `fablecut_scopes {matte:{clip, layer}}`
+  (coverage, plus the levels and colour of the selected pixels).
+- Agents: the patch op **`setGrade`** (merge, reset a key with `null`,
+  `replace`, several clips at once; validated, honours locks) and the tool
+  **`fablecut_scopes`**, which renders the graded frame exactly as export
+  would and returns luma levels, clipping, mean RGB, saturation and the
+  colour cast as numbers.
+- The keyboard-shortcuts dialog (**?**) lists the Color workspace gestures
+  (wheels, pickers, curves, masks on the monitor) and the audio volume line.
+
+## [1.10.0] - 2026-10-02
+
+### Added
+- **Mixer.** A **Mixer** tab beside the Inspector: one strip per audio track
+  with a fader (console taper, unity at ¾ throw, double-click for 0 dB, or
+  type a level), pan, mute, solo and a meter, plus a master fader with a
+  live LUFS readout. Levels are saved as `tracks[].gain` / `tracks[].pan` and
+  `master.gain` in `project.json`, written only when they differ from 0.
+- **Clip gain** (`props.gain`, dB): a trim before volume, so volume
+  keyframes and fades keep working on top of it.
+- **Channels** (`props.channelMode`): stereo, mono (L+R folded to one
+  channel), left, right or swap, per clip.
+- **Normalize.** In the inspector, pick a target (−14 LUFS streaming, −16
+  LUFS podcast, −23 LUFS broadcast, −1 dBFS peak) and **Apply**: the selected
+  clips are measured (ITU-R BS.1770 integrated loudness with EBU R128
+  gating, or sample peak) and their clip gain set to hit it. Linked stems
+  are measured together and share one gain.
+- MCP: `fablecut_normalize_audio` does the same from an agent (needs ffmpeg),
+  with the same measurement as the editor. `fablecut_patch_project` gains a
+  `setTrack` op for track faders / pan and a `master` field on
+  `setProject`; the compact project view shows a `MIX:` line when any
+  level is off 0.
+- **Audio effects.** Effect chains on audio clips (Inspector → Audio effects),
+  tracks and the master (Mixer → FX): EQ (3-band), high-pass, low-pass,
+  compressor, limiter (brickwall, 5 ms lookahead), noise gate, delay, reverb,
+  distortion and stereo width. Reorder, bypass or tweak each effect; preview
+  and export run the same chain. Saved as `fx` on clips, `tracks[].fx` and
+  `master.fx`.
+- **Audio presets.** Voice: Clean voice, Podcast, Radio, Deep voice (EQ-based),
+  Telephone. Music: Cinematic, Wide, Muffled. A preset writes ordinary effects
+  into the chain, so it can be adjusted afterwards.
+- MCP: `fablecut_patch_project` gains `setFx` (a chain or a preset on a clip
+  and its linked stems, a track or the master; validated). The compact view
+  lists chains. The MCPB bundle manifest now lists every tool
+  (`fablecut_encode_profiles` was missing).
+- **Volume line.** Audio clips draw their volume as a line: drag it to change
+  the level (with keyframes, the two around the pointer move together),
+  Ctrl/Cmd-click to add a keyframe, drag a point to move it, Alt-click or
+  double-click to remove one. Edits apply to linked stems too.
+- **Fade grips and fade curves.** Drag the grip in a clip's top corner to fade
+  in or out. Audio fades take a `curve`: constant power, constant gain or
+  exponential (inspector → Transition), drawn as the real curve on the clip.
+  Fades without a `curve` sound exactly as before.
+- **Crossfade (Shift+D, or the clip menu).** Crossfades the audio cut next to
+  the selection, or the one at the playhead: the overlap is borrowed from
+  spare media on both sides of the cut, so nothing downstream moves; linked
+  picture dissolves in. Overlapping audio that is crossfaded no longer shows
+  the overlap warning.
+- **Auto-duck.** In the inspector (or the clip menu): the selected music dips
+  by the chosen amount wherever the dialogue tracks have sound, ramping down
+  just before and back up after, with short pauses bridged. Written as a new
+  `duck` keyframe channel (dB) on top of volume, so the music's own levels are
+  never touched and a re-run replaces the old dips. MCP:
+  `fablecut_auto_duck`, same detection as the editor.
+
+- **Agents can export.** `fablecut_export` renders the timeline to a file in
+  `exports/` with the editor's own Fast export and returns its path. An open
+  editor tab takes the job, or the server starts a headless Chrome / Edge
+  (`FABLECUT_CHROME` to choose) and closes it afterwards. Range, encoding
+  profile, waiting, status and cancel are options. REST:
+  `POST /api/export/request` and `GET /api/export/job`.
+- MCP: `fablecut_patch_project` runs the editor's own timeline edits —
+  `split`, `rippleDelete`, `closeGap`, `lift`, `extract`, `insert`,
+  `overwrite`, `rippleTrim`, `roll`, `slip`, `slide` and `crossfade` — with the
+  same linked-stem sync, track targeting and locks as the keyboard shortcuts.
+  `setProject` takes `inPoint` / `outPoint`, and the compact view shows them.
+
+- **Pitch shift** effect (±12 semitones, speed unchanged). The **Deep voice**
+  preset now lowers the pitch (−4 semitones) instead of only EQ-ing the tone.
+- **Effect automation.** Any effect parameter (except reverb decay) can follow
+  keyframes: a ◆ beside each slider sets or removes a key at the playhead, and
+  the slider then edits the key under the playhead. Clip, track, bus and master
+  effects; preview and export follow the same curve. Saved as `keys` on the
+  effect. MCP: the `setFxKeys` patch op, or `keys` inside a `setFx` chain.
+- **Submix buses.** **+ Bus** in the Mixer adds a bus with its own effects,
+  fader, pan, mute and meter; the menu under a track's name routes it into a
+  bus instead of the master. Saved as `buses` and `tracks[].out`. MCP: `setBus`,
+  `removeBus`, `setTrack {out}`, and `setFx` / `setFxKeys` on a bus.
+- **Noise reduction.** The inspector's **Noise** control (Light / Medium /
+  Strong / Off) measures the file's noise floor and renders a cleaned copy with
+  ffmpeg's FFT denoiser; the clip's audio stems switch to it, and Off switches
+  back. MCP: `fablecut_denoise`; REST: `POST /api/denoise`. Needs ffmpeg.
+
+### Changed
+- The editor's split, ripple, insert, trim and crossfade code moved into
+  `edit-ops.js`, which the editor and the MCP server both load.
+- The master loudness readout is measured on the finished mix, after master
+  effects and the master fader.
+- Preview and export now mix audio through the same graph: each clip feeds
+  its track, each track the master. Before, the export mix sent every clip
+  straight to the output, so anything set on a track or the master could not
+  reach the exported file.
+
+### Fixed
+- **Titles draw in their own fonts again.** Every title style (Anton, Playfair
+  Display, Bebas Neue, Caveat, …) was falling back to the system sans-serif:
+  - The 20 fonts in `library/fonts` were the wrong slice of each Google font
+    (Cyrillic, Vietnamese, …) with no A–Z in them. They are now the Latin
+    files, and the variable ones (Caveat, DM Sans, Inter, Montserrat, Oswald,
+    Playfair Display, Roboto, Rubik, Teko) keep their whole weight range, so
+    `weight` 100–900 draws real weights instead of a faked bold.
+  - Fonts that aren't in the library (Cinzel for the Luxury style, or any
+    Google Font typed by name) never loaded: the check meant to skip fonts
+    already present passed for every name. They load now, and **Load** says
+    so when Google Fonts has no family by that name.
+  - A data directory seeded before this release (the Claude Code plugin keeps
+    one) gets the new font files on the next start; a file you changed or
+    added yourself is never overwritten.
+- Exports wait for every title font, including a `font-cut` title's whole
+  set, before the first frame, so an opening frame can't come out in the
+  fallback face.
+- The font list no longer shows a library font twice after a quick run of
+  project reloads.
+
+## [1.9.0] - 2026-09-30
+
+### Added
+- **Named, coloured markers** — markers now carry an optional `label` and
+  `color` (gold · red · orange · green · cyan · blue · purple · pink) and show
+  their name on the ruler. Drag a marker to move it (it snaps), click it to
+  jump, double-click or right-click to rename / recolour / delete. A
+  **Markers** button lists every marker to jump to or edit, with Clear all.
+  <kbd>⇧M</kbd> / <kbd>Alt+⇧M</kbd> go to the next / previous marker. Marker
+  edits are now undoable.
+- **Snap targets** — the <b>▾</b> beside Snap picks what pulls a drag in: clip
+  edges, playhead, markers, IN/OUT, keyframes (new, off by default) and the
+  frame grid (rounds to whole frames when nothing else is in reach). A cyan
+  guide line shows where a drag snapped. Remembered per browser.
+- **Typed timecode** — click the playhead readout (or just type a digit) and
+  enter a time: `01:15:00`, packed digits (`1500` = 15 s), `+30` / `-1:00` to
+  offset, or seconds (`12.5`). The IN and OUT readouts take typed times too,
+  in both monitors.
+- **Full JKL** — <kbd>J</kbd> now plays in reverse (silent, frame by frame);
+  tapping <kbd>J</kbd> or <kbd>L</kbd> again speeds up in that direction and
+  the other key turns around at 1×. Hold <kbd>K</kbd> and tap
+  <kbd>J</kbd>/<kbd>L</kbd> to step one frame, or hold both to crawl at ¼
+  speed. Works in the Source monitor too.
+- **Trim tools** — a tool picker in the timeline toolbar with Premiere's
+  shortcuts where they are free: **Selection** (<kbd>V</kbd>), **Ripple edit**
+  (<kbd>B</kbd>), **Rolling edit** (<kbd>R</kbd> — Premiere's N is Snap here),
+  **Slip** (<kbd>Y</kbd>) and **Slide** (<kbd>U</kbd>). Ripple and Roll act on
+  clip edges, Slip and Slide on the whole clip. All are clamped to the source
+  media, MIN_DUR and free room, move linked partners together, respect
+  targeting and locks, snap like normal trims, undo in one step, and show the
+  offset beside the pointer while dragging.
+- **Lift** (<kbd>;</kbd>) and **Extract** (<kbd>'</kbd>) — remove the IN→OUT
+  range on the targeted tracks; Extract also closes the gap. Buttons in the
+  timeline toolbar too.
+- **Track targeting** — click a track's name to target or untarget it. Split,
+  insert, replace, ripple delete, close gap, next gap, T / ⇧T and jump-to-cut
+  touch targeted tracks only, and Source placement lands on the targeted lanes.
+  A selection is still edited wherever it sits. Stored as
+  `project.untargetedTracks`.
+- **Track lock** — a padlock in the track header (`project.lockedTracks`).
+  Nothing on a locked track can be moved, trimmed, split, deleted or edited in
+  the inspector, and ripple edits leave it in place while the other tracks
+  shift.
+- **Clip lock and clip disable** — right-click a clip or use the new toggles at
+  the top of the inspector. A locked clip (`locked: true`) is pinned like a
+  locked track; a disabled clip (`disabled: true`, <kbd>⇧E</kbd>) stays on the
+  timeline but is left out of preview, audio and export. A linked A/V group
+  with any locked member counts as locked as a whole, so sync never breaks.
+- **Unlink / link audio and video** (<kbd>Ctrl/Cmd+L</kbd>, or the clip menu).
+  Unlinking stamps `unlinked: true` so the reload-time relink no longer pairs
+  the clips back up; Link re-joins a video and its audio once they line up.
+- **Agents respect locks** — `fablecut_patch_project` refuses `updateClip` /
+  `removeClip` on a locked clip (or one linked to it) and `addClip` onto a
+  locked track, unless the op carries `force: true`. `set:{locked:null}` always
+  works, and `setProject` accepts `lockedTracks` / `untargetedTracks`. The
+  compact project view lists locked / untargeted tracks and flags clips
+  `[locked]`, `[disabled]`, `[unlinked]`.
+
+### Changed
+- <kbd>K</kbd> only stops playback now (it used to toggle play); <kbd>Space</kbd>
+  still toggles. <kbd>⇧M</kbd> goes to the next marker instead of adding one
+  — plain <kbd>M</kbd> adds / removes.
+- The track enable toggle (eye / speaker) is now **output-only**: a disabled
+  track is still hidden from preview and export, but edits no longer skip it —
+  targeting decides that. As a side effect, soloing a track no longer blocks
+  edits on the others.
+- The media bin's **+ Title / + Adjust / + Import / + URL** buttons share one
+  row; the "Assets" heading beside them is gone.
+- The editor's browser tab reads "FableCut - Video Editor".
+
+### Fixed
+- Exports are now tagged with their colour primaries and transfer (BT.709 by
+  default). Every profile used to write them as "unknown", so some players
+  guessed the colours; ProRes lost its matrix tag too. The tags are stamped
+  with `setparams`, which also works on FFmpeg builds older than 7.1.
+
+## [1.8.0] - 2026-09-29
+
+### Added
+- **Jump to cut** — `↑` / `↓` move the playhead to the previous / next clip In
+  or Out (selected clip first; otherwise enabled tracks). Source monitor: In /
+  Out marks. Does not replace ← / → frame step, Home / End, or Ctrl/Cmd+←/→
+  keyframe jump. (thanks @PlkMarudny, #74)
+- **Source monitor** (Avid NewsCutter-style single viewer) — Source / Program toggle on the shared monitor. Double-click Project media or a timeline clip to load Source (timeline loads with that clip’s In/Out window). Transport, I/O marks, Space/JKL, and scrubbing follow the active mode; drag-to-timeline is unchanged. (thanks @PlkMarudny, #74)
+- **Insert at playhead** (`,`, or the Source monitor insert icon) — places the Source In→Out window on the timeline at the playhead, splits straddling clips, and ripples everything after; video brings linked audio stems like a bin drop.
+- **Replace at playhead** (`.`, or the Source monitor replace icon) — overwrites onto placement tracks (V1 + A stems, or the lowest remaining V / A lanes if those were removed); also clears overlapping linked AV stems on A3+ so they don’t stack; V2/V3 overlays and standalone music are left alone; no ripple. When Source was loaded from a timeline clip, Replace instead applies the new In→Out to that instance (and linked stems) and ripples later clips on those tracks if the duration changed.
+- **Ripple delete** — timeline toolbar button or <kbd>⇧Del</kbd> removes the selection and closes the gap on enabled tracks (plain <kbd>Del</kbd> still leaves a gap). Insert/replace ripples, splits, gap-close and ripple delete all keep sync lock: linked AV partners move together even on disabled tracks.
+- **Fix: linked A/V integrity on destructive edits** — Replace punches and IN/OUT trims now apply to linked partners on disabled tracks too, and punch re-pairs the surviving head/tail pieces across tracks (previously the pieces stayed unlinked until a reload).
+- **Insert/replace skip disabled tracks on placement** — source-patching style: a disabled V1 drops the picture, disabled A-lanes drop those stems; when every target lane is disabled the op toasts and does nothing.
+- Program Monitor transport: playhead as `current / sequence duration` on the
+  left; when IN/OUT are set, a right-side stack of IN, marked duration, OUT. (thanks @PlkMarudny, #68)
+- Ctrl/Cmd-click an inspector **slider** to reset that property to its default
+  and clear its keyframes (same as Ctrl/Cmd-clicking the label — scale → 1,
+  opacity → 1, brightness → 100, …). (thanks @PlkMarudny, #73)
+- **Import from URL** — `POST /api/import-url` downloads an HTTPS video, audio
+  or image into `./media/` and returns a same-origin `/media/…` src. The
+  editor **+ URL** button and `fablecut_import_media` (now accepts `https://`
+  as well as a local path) use it. HTTPS-only with SSRF guards (no localhost /
+  private / link-local / CGNAT, including after DNS and redirects). Remote SVG
+  is refused so a scripted file cannot run on the editor origin. A raw HTTPS
+  `media.src` is still unsupported — canvas CORS would break export. (thanks @PlkMarudny, #63)
+- **WebCodecs export** — a second export engine beside Fast. The browser
+  HW-encodes H.264 with `VideoEncoder` and streams the Annex-B elementary
+  stream to the server, which stream-copies it into MP4 (`-c:v copy`) and muxes
+  the offline audio mix in one pass. Bitrate and rate control (VBR / CBR) are
+  chosen in the Export dialog; support is probed before every run and the
+  engine is hidden when unavailable or when an export frame is set (use Fast).
+  `-r` on the input forces CFR PTS so the file matches `project.fps` exactly,
+  and BT.709 tags are written into both the bitstream and the container.
+  Abandoned sessions are reclaimed by an idle sweeper, and SIGINT / SIGTERM
+  clean up in-flight ffmpeg processes and temp dirs. (thanks @PlkMarudny, #49)
+- A real test suite (`npm test`, zero dependencies, `node:test`): MCP protocol
+  negotiation and framing, MCP tool semantics including the conflict rules, the
+  REST API with its Host/Origin and path-traversal guards, and the shipped SVG
+  library. CI runs it on Node 18, 20 and 22 for every pull request.
+- Dynamic video + audio tracks (default 3+4; **+V** / **+A**, right-click
+  **Remove track**, header **S** solo; up to 16 per kind). The live lane list is
+  stored on `project.json` as `tracks`. (thanks @PlkMarudny, #41)
+- Per-clip **stereo pan** (`props.pan`, −1…+1) on video/audio clips — inspector
+  slider + keyframes; preview, audio-hold, and both export engines honor it.
+  Linked stems default to L `−1` / R `+1` / center for other channels. Compact
+  MCP keeps `pan` on linked stems.
+- Stereo **master meter** (L/R) on the monitor — post-pan program sum in the
+  same RMS / LUFS / Peak modes as the per-track bars; A-tracks + video spill
+  route through one summed path when the meter worklet is active. Per-track
+  bars collapse via **◂** / **▸** beside the master strip (master L/R stay visible). (thanks @PlkMarudny, #41)
+- **Export frame / reframing** — the composition canvas can be larger than the
+  delivery: set `project.exportFrame` `{x, y, w, h}` (or drag the frame on the
+  monitor) and Fast export renders only that region, e.g. a 9:16 reel cut from
+  a 16:9 edit (Realtime and WebCodecs are unavailable while a frame is set).
+  The outside is dimmed in the monitor, or cropped away with the lightbulb
+  toggle. (thanks @PlkMarudny, #46, #66)
+- **Encoding profiles for Fast export** — `encoding-profiles.json` defines the
+  ffmpeg presets picked in the Export dialog: Draft, Delivery (the previous
+  default), High quality 4:2:2 10-bit, Broadcast 1080i50 MOV and ProRes 422 HQ,
+  each with its colour tags. `fablecut_encode_profiles` lists them over MCP, and
+  the list reloads when the file changes. (thanks @PlkMarudny, #48)
+- **Editable keyframes** — park the playhead on a keyframe (Ctrl/Cmd+← / →) and
+  its value loads into the inspector for editing. Shift-click a property label
+  to remove that keyframe; Ctrl/Cmd-click removes them all. Once a property has
+  keyframes, changing it at the playhead adds one. (thanks @PlkMarudny, #70)
+- Two animated SVG overlays: `spawning-hearts` (TikTok-style reaction) (thanks
+  @PlkMarudny, #78) and `ai-star` (twinkling AI sparkle) (thanks @PlkMarudny, #79).
+
+### Changed
+- Fast export no longer waits for each JPEG HTTP POST before drawing the next
+  frame. The compositor snapshots via `transferToImageBitmap` and keeps going;
+  JPEG encode runs in workers and uploads overlap in batches. Piping uncompressed
+  RGBA over HTTP was slower (1080p ≈ 8 MiB/frame); the UI is back on JPEG
+  image2pipe. `pixelFormat: "rgba"` remains on `/api/export/begin` for callers
+  that want raw frames. (thanks @PlkMarudny, #72)
+- `POST /api/export/begin` now **requires** `fps` (pass `project.fps`) instead
+  of defaulting to 30, and takes `mode: "jpeg" | "annexb"`. Callers that relied
+  on the old default must send the value; a missing or non-numeric `fps` is a
+  400, not a silently wrong frame rate.
+- `project.json` gains two forward-compatible keys (`tracks`, `panSchema`).
+  Older builds ignore them. **Opening** a project saved before pan writes the
+  file back once: it stamps `panSchema: 1`, hard-pans linked stems that had no
+  `pan`, and every save from then on also emits `tracks`. Hand-edited documents
+  that omit `panSchema: 1` will be migrated again on the next open.
+- Audio meters have more segments, handle silence better and resize with the
+  panel (thanks @PlkMarudny, #65, #80).
+- The timeline playhead moves with a CSS transform instead of `left`, so
+  playback no longer triggers layout shifts (thanks @PlkMarudny, #71).
+
+### Fixed
+- Fast (and WebCodecs) export no longer repeats video frames. The compositor was
+  snapshotting before a new decoded picture was presented: `currentTime` and
+  `fastSeek` ran ahead of the displayed frame, play-ahead settled a half-frame
+  early, and JPEG/upload backpressure left the element playing so the next tick
+  had to seek back to a keyframe. Export now waits on
+  `requestVideoFrameCallback` mediaTime, seeks with `currentTime`, and pauses
+  during stalls. ffmpeg’s JPEG pipe was already 1:1 — unique frames stay unique.
+- Export play-ahead is less twitchy mid-shot: JPEG/encoder queue depth no longer
+  forces a full pause+seek on every blip (only when the queue is deep or the
+  compositor tick fell behind), and play-ahead no longer hard-seeks just because
+  `currentTime` ran ahead of the presented picture. (thanks @PlkMarudny, #75)
+- `waitForPresentedFrame` no longer treats a presentation timeout (or an rvfc
+  callback without `mediaTime`) as success — `hardSeekVideo` retries up to three
+  times instead of recording `currentTime` as the presented frame.
+- Fast / WebCodecs export no longer throws “tainted canvases may not be exported”
+  for animated SVG overlays (rasterized via a same-origin blob instead of a
+  `data:` URL) or for other-origin footage that sends CORS (reload with
+  `crossOrigin=anonymous` for the encode). A clip whose server omits
+  `Access-Control-Allow-Origin` still cannot be JPEG-encoded — import it into
+  `./media` instead.
+- MCP `initialize` no longer echoes an unsupported `protocolVersion`. Missing or unknown versions now negotiate to `2025-11-25` instead of claiming a revision the server does not speak (#58; thanks @michaelxer, #59).
+- `CLAUDE.md` pointed agents at `fablecut_docs {section:"props"}`, which matches no `## ` heading and returns nothing useful; it now names a real section.
+- Audio graph teardown on project reload — clip chains
+  (`MediaElementSource → splitter → gain → panner → bus`) are now fully
+  disconnected via `releaseClipEl` instead of only clearing the maps (which
+  left nodes wired to live track buses). Panner attach degrades gracefully if
+  `StereoPannerNode` is unavailable; inspector volume/pan changes refresh
+  audio-hold voices.
+- **Export follows IN/OUT** — Fast, WebCodecs, and Realtime honor a Range
+  choice in the Export dialog (Entire timeline / IN–OUT; IN–OUT is the default
+  when markers exist). Effective IN/OUT export bounds are clamped to `projDur`
+  so an IN past the last clip cannot become a one-frame black file. (thanks @PlkMarudny, #68)
+- Master audio meter readings now match the per-track meters, and master LUFS
+  is measured on the summed program instead of falling back to RMS (thanks
+  @PlkMarudny, #67).
+- `heart-pop.svg` no longer flashes a stray shape at the start of its animation
+  (thanks @PlkMarudny, #69).
+
+## [1.7.0] - 2026-08-25
+
+The community release — 20 merged pull requests. Audio gets real tracks and real
+metering, the monitor gets zoom, the Project tab gets folders, and FableCut
+installs as a Claude Code plugin.
+
+### Added
+- **Installable as a Claude Code plugin.** `.claude-plugin/plugin.json` plus a
+  `.claude-plugin/marketplace.json`, so the repo is its own marketplace:
+  `/plugin marketplace add ronak-create/FableCut` then
+  `/plugin install fablecut@fablecut`. Ships the MCP server via `.mcp.json` and
+  two skills (`edit-video`, `remake-reel`).
+- `FABLECUT_DATA_DIR` — put `project.json`, `media/`, `exports/`, `analysis/`
+  and `library/` somewhere other than the install directory. Unset (the default)
+  everything stays where it always has, so `node server.js` is unchanged. The
+  plugin points it at the per-plugin data directory, which is what keeps a
+  user's timeline and footage from being wiped when a plugin update replaces the
+  install directory. On first use with a split data dir the shipped `library/`
+  assets are copied across; files you add or edit there are never overwritten.
+- Project FPS select in the Program Monitor header (next to aspect presets) —
+  pick 24 / 25 / 30 / 50 / 60 fps; writes `project.fps` and persists like canvas
+  size. Non-preset rates appear as Custom.
+- Preview playback speed — a monitor toolbar toggle plus **J**/**K**/**L** shortcuts cycle the preview player through 1×, 1.5×, 2×, and 4× (L faster, J slower, K play/pause and reset to 1×). It rides on top of each clip's own speed and is forced back to 1× during export, so renders always come out at real time.
+  (thanks @ur5fot, #18)
+- **Separate audio and video tracks.** Imported video now shows its audio as
+  linked companion clips on the A-tracks (sharing a `linkGroup`, relinked on
+  project reload), with switchable RMS / LUFS / peak metering and dBFS labels
+  (thanks @PlkMarudny, #17)
+- **Track enable/disable** buttons, with the disabled state persisted to
+  `project.json` as `disabledTracks`, plus an export-time warning when a disabled
+  track still holds clips (thanks @PlkMarudny, #20, #22)
+- **Keyframe graphs** — interpolated curves drawn on the clip, keyframe markers,
+  and a keyframe count per time point (thanks @PlkMarudny, #34)
+- **Text layout engine** — word wrapping inside a text box with horizontal and
+  vertical alignment (`boxW`/`boxH`/`vAlign`) (thanks @PlkMarudny, #37)
+- **Project folders** — a folder tree in the Project tab with drag-and-drop and
+  in-place rename, stored as `folders[]` (thanks @PlkMarudny, #38)
+- **Monitor zoom** — mousewheel over the Program Monitor zooms the composition
+  (clamped to 2× real pixels), with scrollbars when zoomed in and a restyled
+  zoom-reset button (thanks @PlkMarudny, #39)
+- **Linked selection** between the Project tab and the timeline
+  (thanks @PlkMarudny, #40)
+- **Audio hold** — a single frame of audio loops while the playhead is held, so
+  scrubbing is audible (thanks @PlkMarudny, #42)
+- **Clip replacement and rename** — swap a clip's source media in place
+  (thanks @PlkMarudny, #45)
+- **Animated SVG overlays** — `countdown-ring`, `rec-indicator` and `swipe-up`
+  join the shipped `library/svg/` set (thanks @madebysaira, #55)
+- **In/out points** on the timeline — `inPoint`/`outPoint` mark the working
+  range (thanks @PlkMarudny, #21)
+- **Transition overlay** — transitions are now drawn on the clip itself
+  (thanks @PlkMarudny, #23)
+- **RTL support for titles** — `direction: auto | ltr | rtl`, with every
+  `textAnim` mode staggering in reading order (thanks @PlkMarudny, #25)
+- `sunset` and `midnight` filter presets (thanks @Azizbek, #29)
+- `luxury` title style — Cinzel, cream→gold gradient, wide letter-spacing
+  (thanks @Azizbek, #30)
+- Ctrl+click an inspector label to reset that property to its default
+  (thanks @PlkMarudny, #36)
+- Two-column help dialog (thanks @PlkMarudny, #33)
+- Word-timestamp auto-caption example (thanks @madebysaira, #53)
+- Multi-agent MCP setup documentation (thanks @madebysaira, #54)
+- MCP registry metadata — `server.json` plus an MCPB manifest, so FableCut is
+  installable as a one-click `.mcpb` bundle.
+
+### Fixed
+- **Exports are tagged BT.709**, so they no longer render noticeably darker than
+  the preview (thanks @dntmcq, #56)
+- **XSS in the Project tab** — user-controlled media and folder names were
+  rendered through `innerHTML` unescaped.
+- Zoom to timeline now scales the timeline to 95% of the viewport instead of
+  overflowing it (thanks @PlkMarudny, #47)
+- `syncMedia` no longer desyncs when playout is paused (thanks @PlkMarudny, #32)
+- Gap closing on the timeline (thanks @PlkMarudny, #31)
+- Vertical drag of clips between tracks.
+- Font weight is preserved in `drawText()` on the `font-cut` path.
+- Audio meter labels are placed correctly at 'S' track density.
+
+### Changed
+- VU meter and timeline ruler now render on canvases rather than DOM nodes — a
+  large drop in layout cost during playback (thanks @PlkMarudny, #44)
+- Monochrome icons throughout (thanks @PlkMarudny, #19)
+- Play button restyled to be more visible (thanks @PlkMarudny, #35)
+- Overlapping helpers deduplicated into shared general-purpose functions
+  (thanks @PlkMarudny, #43)
+- Landing page: liquid-glass theme, live GitHub star count, and a minimal hero
+  over an ASCII field.
+- README: ASCII block wordmark, zh-CN / ja / es / pt-BR translations, DeepWiki
+  link, community Discord link, and a Trendshift badge.
+
+### Fixed
+- Continuous playback no longer flashes a wrong first frame at hard cuts — upcoming video clips are pre-seeked to their In ~0.85 s before the playhead reaches them (frame-step already waited for seeks, so it looked fine).
+
+## [1.6.0] - 2026-07-14
+
+### Added
+- Resizable monitor/timeline split — drag the divider, double-click to reset (thanks @PlkMarudny, #14)
+- S/M/L timeline track-density presets with layout persistence (thanks @PlkMarudny, #15)
+- Zoom to selection (Z) now frames all selected clips (thanks @PlkMarudny, #13)
+- Title-style picker: each entry renders in its own typeface, and hovering an entry live-previews the style on the monitor (mouse away reverts, click commits)
+- Program-monitor hover cursors: the rotate knob shows a rotate cursor, corner handles show direction-aware resize arrows (correct even on rotated clips), and the clip body shows a move cursor
+
+### Fixed
+- Changing a title's style no longer resets its position/scale/rotation — style switches only restyle the look; placement applies to newly created titles only
+- Selection handles now clamp to the frame edge and stay visible/grabbable when a clip's box extends past the canvas
+- Header logo icon/text vertical alignment after the topbar layout change
+
+## [1.5.0] - 2026-07-11
+
+### Added
+- **Direct manipulation on the program monitor** — click a clip or title on the
+  preview to select it, then drag the body to move, the corner handles to resize,
+  and the top handle to rotate (hold Shift to snap rotation to 15°). Gestures map
+  straight onto the clip's `x`/`y`/`scale`/`rotation` props. Selection handles are
+  drawn only on screen and never appear in an export.
+
+## [1.4.0] - 2026-07-11
+
+### Added
+- **Title styles** — text clips no longer all look the same. Adding a title now
+  rotates through curated one-tap looks (Impact, Elegant, Kinetic cut, Neon,
+  Handwritten, Serif drop, Subtitle, Bold rise), each bundling a **different
+  font**, placement and animation. Pick or shuffle them from the inspector, or
+  reproduce any look from an agent by writing the same props.
+- **Four cinematic caption animations**: `clip-reveal` (wipe-mask sweep),
+  `zoom-in` (scale + opacity settle), `font-cut` (rhythmically swaps the typeface
+  from a `fontCutSet`, then settles), and `rise-mask` (lower-third reveal). All
+  render on the existing frame-accurate path, so they export unchanged.
+- Expanded the built-in Google-font list with the display faces the styles use
+  (Archivo Black, Abril Fatface, Barlow, Teko, Roboto). Any font name still
+  auto-downloads on demand.
+
+## [1.3.1] - 2026-07-11
+
+### Security
+
+Hardening of the local server against network and drive-by attacks, prompted by
+the report in [#1](https://github.com/ronak-create/FableCut/issues/1) — thanks
+@suthakamal2.
+
+- The server now binds **127.0.0.1 only** by default (previously all
+  interfaces, reachable from the whole LAN). Deliberate LAN use is an explicit
+  opt-in: `HOST=0.0.0.0 node server.js` plus
+  `FABLECUT_ALLOWED_HOSTS=192.168.1.20,mybox.local`.
+- Every request is checked against a **Host-header allowlist**
+  (localhost/127.0.0.1/[::1] + the opt-ins above), which defeats DNS-rebinding
+  attacks, and — when the browser sends one — an **Origin allowlist**, which
+  defeats blind cross-origin writes from malicious web pages (e.g. a drive-by
+  `POST /api/upload` carried a no-preflight raw body).
+- The static file server no longer serves dot-files or dot-directories
+  (`.git/`, `.gitignore`, …), and both path-traversal guards now use
+  separator-anchored directory prefixes.
+
+### Added
+- The default asset library now ships with the repo where licensing allows:
+  20 Google Fonts in `library/fonts/` (OFL, listed in `LICENSES.md`) and the
+  self-authored overlay SVGs in `library/elements/`. `library/sfx/` stays
+  local-only (SFX-site licenses generally prohibit redistribution) — its new
+  README points to good free sources.
+
+## [1.3.0] - 2026-07-09
+
+### Added
+- **Reference-remake pipeline** — give FableCut a reference video and get back an
+  *edit blueprint* to rebuild the same idea with different footage over the same
+  music. New zero-dependency analyzer (`analyze.js`, needs ffmpeg): shot-boundary
+  detection with adaptive threshold, music beat + BPM detection (onset envelope +
+  autocorrelation, span-refined), a 0.5 s loudness curve, per-shot audio energy,
+  drop detection, and extraction of the reference's music track into `media/`.
+  Exposed as MCP tool `fablecut_analyze_reference`, REST `POST /api/analyze`
+  (cached under `./analysis/`, `GET /api/analyze?src=…`), and CLI
+  `node analyze.js <video>`. New CLAUDE.md section "Remake a reference video"
+  documents the blueprint schema and the rebuild recipe.
+- **Token-efficient agent surface**:
+  - `fablecut_patch_project` — targeted ops (`addClip`, `updateClip`,
+    `removeClip`, `addMedia`, `removeMedia`, `setProject`) applied to the latest
+    on-disk document in one atomic, merge-safe write — no more round-tripping the
+    whole project JSON for a one-prop change.
+  - `fablecut_get_project {compact:true}` — one-line-per-clip timeline summary
+    (non-default props only, keyframe/transition digests), ~10× smaller.
+  - `fablecut_docs {section:"…"}` — fetch only matching `## ` sections of the manual.
+  - `fablecut_status` now caps long media listings.
+  - New CLAUDE.md section "Token-efficient editing" with agent guidance.
+
+### Changed
+- Full `fablecut_get_project` now returns minified JSON (was pretty-printed).
+- MCP server bumped to version **1.3.0**.
+
+## [1.2.0] - 2026-07-09
+
+### Added
+- **Timeline multi-select** — rubber-band marquee (drag on empty track area)
+  selects every clip the box touches. Ctrl/Cmd/Shift+click adds or removes
+  individual clips. Ctrl+A selects all; Esc deselects.
+- **Group move** — dragging any selected clip moves the whole selection by the
+  same time delta (clamped at 0). Vertical track moves remain per-clip.
+- **Batch Delete / Split** — Delete removes all selected clips; S splits every
+  selected clip that sits under the playhead.
+- **Multi-select inspector** — shows an "N clips selected" banner; edits the
+  primary (white-outlined) clip; secondary clips show a lighter outline.
+- **Conflict-safe `PUT /api/project`** — rejects stale writes with **409** when
+  the request body's `revision` ≤ the on-disk revision; response body is
+  `{error, revision}` with the current value. Append `?force=1` to overwrite
+  deliberately. Writes are now atomic (tmp file + rename).
+- **Conflict-safe MCP `fablecut_set_project`** — tracks the revision from the
+  last `fablecut_get_project` and errors with "CONFLICT — not saved" if
+  `project.json` changed on disk since that read. Recovery: re-read, re-apply,
+  save. New optional `force: true` argument bypasses the check.
+
+### Changed
+- Editor UI syncs by exact revision comparison (no timing heuristics); detects
+  external changes even during the previous 1.5 s blind window; defers reloads
+  during drag/export and applies them immediately after; preserves clip
+  selection across external reloads (pruned to clips that still exist); shows a
+  toast ("Project was updated externally…") when an external write supersedes an
+  unsaved local tweak.
+- Selection state survives undo/redo.
+- `CLAUDE.md` and `README.md` updated to document all of the above.
+- MCP server bumped to version **1.2.0**.
+
+## [1.1.0] - 2026-07-07
+
+### Added
+- **Motion FX** (all animatable): camera `shake` / `shakeSpeed`, `rgbSplit`
+  chromatic aberration, and boiling film `grain`.
+- **Speed ramps** — `speed` is now keyframable. The engine time-remaps media time
+  as `in + ∫ speed dt` in both preview and the offline export audio mix (the
+  fast-into-slow-motion reel move).
+- **Adjustment layers** — a new `kind:"adjust"` clip that re-renders everything
+  drawn below it through its own grade/filter/shake/grain/vignette stack,
+  Premiere-style. Added the *+ Adjust* button, inspector, and timeline styling.
+- **Neon caption glow** (`glow` / `glowColor`).
+- Four new kinetic text animations: `letter-pop`, `wave`, `bounce`, `shake`.
+- Two new transitions: `glitch` (RGB split + jitter) and `pop` (overshoot scale).
+- Project-level `background` color, persisted and drawn behind all clips.
+- 16 new animated library SVGs (subscribe pill/bell, rating stars, arrows,
+  badges, progress/loading bars, speech bubble, hearts, equalizer, pulses…).
+
+### Changed
+- `CLAUDE.md` and `README.md` expanded to document all of the above.
+- MCP server validation now exempts `adjust` clips from the `mediaId` check.
+
+## [1.0.0] - 2026-07-06
+
+### Added
+- Initial public release: a zero-dependency, Premiere-style browser video editor
+  whose entire timeline is a single `project.json` document.
+- **Editing** — 4 video + 3 audio tracks, drag/trim/split/snap, undo/redo, beat &
+  cue markers, real decoded audio waveforms, aspect presets + safe-area guides.
+- **Look** — 12 filter presets, full grade controls (temperature/tint/vignette),
+  blend modes, fit/crop/corner-radius/flip, chroma key, in-browser AI background
+  removal (MediaPipe).
+- **Motion** — keyframe animation with easing, per-clip speed, 15 transitions.
+- **Text** — kinetic captions, gradient/outline/pill styling, any Google Font by
+  name, drop-in custom fonts.
+- **Animated SVG clips** — a first-class `svg` kind rendered frame-accurately from
+  CSS `@keyframes`.
+- **Export** — fast browser-rendered frames + offline audio mix encoded by ffmpeg
+  (CRF-18 MP4), with a realtime MediaRecorder fallback.
+- Three control surfaces for AI agents: **MCP server**, direct `project.json`
+  editing, and a **REST API** with live-reload over server-sent events.
+
+[Unreleased]: https://github.com/ronak-create/FableCut/compare/v1.18.0...HEAD
+[1.18.0]: https://github.com/ronak-create/FableCut/compare/v1.17.0...v1.18.0
+[1.17.0]: https://github.com/ronak-create/FableCut/compare/v1.16.0...v1.17.0
+[1.16.0]: https://github.com/ronak-create/FableCut/compare/v1.15.0...v1.16.0
+[1.15.0]: https://github.com/ronak-create/FableCut/compare/v1.14.0...v1.15.0
+[1.14.0]: https://github.com/ronak-create/FableCut/compare/v1.13.0...v1.14.0
+[1.13.0]: https://github.com/ronak-create/FableCut/compare/v1.12.1...v1.13.0
+[1.12.1]: https://github.com/ronak-create/FableCut/compare/v1.12.0...v1.12.1
+[1.12.0]: https://github.com/ronak-create/FableCut/compare/v1.11.0...v1.12.0
+[1.11.0]: https://github.com/ronak-create/FableCut/compare/v1.10.0...v1.11.0
+[1.10.0]: https://github.com/ronak-create/FableCut/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/ronak-create/FableCut/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/ronak-create/FableCut/compare/v1.7.0...v1.8.0
+[1.7.0]: https://github.com/ronak-create/FableCut/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/ronak-create/FableCut/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/ronak-create/FableCut/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/ronak-create/FableCut/compare/v1.3.1...v1.4.0
+[1.3.1]: https://github.com/ronak-create/FableCut/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/ronak-create/FableCut/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/ronak-create/FableCut/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/ronak-create/FableCut/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/ronak-create/FableCut/releases/tag/v1.0.0
