@@ -58,7 +58,8 @@ describe("migration", () => {
     expect(t.rows[0]!.n).toBe(5);
     const b = await db.query<{ id: string; public: boolean }>(`select id, public from storage.buckets order by id`);
     expect(b.rows).toEqual([
-      { id: "brand-assets", public: false }, { id: "listing-media", public: false }, { id: "video-exports", public: false },
+      { id: "brand-assets", public: false }, { id: "listing-media", public: false },
+      { id: "project-media", public: false }, { id: "video-exports", public: false },
     ]);
   });
 

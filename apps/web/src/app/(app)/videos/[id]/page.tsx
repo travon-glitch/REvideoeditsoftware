@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Film, Type } from "lucide-react";
+import { ArrowLeft, Download, Film, Pencil, Type } from "lucide-react";
 import { getMove } from "@lvs/camera-presets";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageHeader } from "@/components/page-header";
 import { VideoStatusBadge } from "@/components/status-badge";
-import { ComingSoonNote } from "@/components/coming-soon";
 
 export const metadata = { title: "Video" };
 
@@ -37,18 +36,60 @@ export default async function VideoPage({
   const textClips = clips.filter((c) => c.kind === "text");
   const total = clips.reduce((m, c) => Math.max(m, c.start + c.duration), 0);
   const advanced = ctx.profile.ui_mode === "advanced";
-  const { data: access } = await supabase.rpc("project_access", { p_project: id });
+  const [{ data: access }, { data: renders }] = await Promise.all([
+    supabase.rpc("project_access", { p_project: id }),
+    supabase.from("render_jobs").select("id,aspect,status,progress,created_at,width,height,duration_seconds,error_message")
+      .eq("project_id", id).order("created_at", { ascending: false }).limit(20),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
       <Button variant="ghost" asChild className="self-start"><Link href="/videos"><ArrowLeft aria-hidden="true" />All videos</Link></Button>
-      <PageHeader title={video.title} description={listing ? `For ${listing.address_line}` : undefined} actions={<VideoStatusBadge status={video.status} />} />
+      <PageHeader
+        title={video.title}
+        description={listing ? `For ${listing.address_line}` : undefined}
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <VideoStatusBadge status={video.status} />
+            {access === "edit" ? (
+              <Button asChild size="lg" className="bg-brand text-white hover:bg-brand/90"><Link href={`/videos/${id}/edit`}><Pencil aria-hidden="true" />Open editor</Link></Button>
+            ) : null}
+          </div>
+        }
+      />
       {created ? (
         <Alert variant="success"><AlertDescription className="text-base">Your first version is ready: {photoClips.length} scenes, about {Math.round(total)} seconds.</AlertDescription></Alert>
       ) : null}
-      <ComingSoonNote>
-        The video editor and &ldquo;Make my video&rdquo; button are being connected next. Your scenes are saved and will open in the editor automatically.
-      </ComingSoonNote>
+      <Card>
+        <CardHeader>
+          <CardTitle>Finished videos</CardTitle>
+          <CardDescription>1080p MP4 files made from this project.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {renders && renders.length > 0 ? (
+            <ul className="divide-y rounded-lg border">
+              {renders.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-base">
+                  <span className="w-28 font-semibold">{r.aspect}</span>
+                  <span className="flex-1 text-muted-foreground">
+                    {r.status === "succeeded" ? `${r.width}×${r.height} · ${Math.round(Number(r.duration_seconds ?? 0))} s · ${formatDateTime(r.created_at)}`
+                      : r.status === "failed" ? `Didn't finish: ${r.error_message ?? "unknown problem"}`
+                      : r.status === "running" ? `Being made… ${Math.round(Number(r.progress) * 100)}%` : "Waiting to start…"}
+                  </span>
+                  {r.status === "succeeded" && ctx.profile.can_download ? (
+                    <Button asChild size="sm"><a href={`/api/projects/${id}/renders/${r.id}/download`}><Download aria-hidden="true" />Download</a></Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-base text-muted-foreground">
+              {access === "edit" ? "No exports yet. Open the editor and choose Export." : "No finished videos yet."}
+            </p>
+          )}
+          {!ctx.profile.can_download ? <p className="mt-3 text-sm text-muted-foreground">Downloads are turned off for your account.</p> : null}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Card>

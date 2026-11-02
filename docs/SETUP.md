@@ -99,7 +99,27 @@ for good (enforced in the database by `private.bootstrap_state`).
 
 See `docs/STAGE3.md` for statuses (invited / active / suspended / deactivated), limits and the audit log.
 
-## 8. Production checklist
+## 8. Render worker (makes the MP4 files)
+
+Videos are rendered by a separate background process, not by the web server. On a machine (or container) with
+**FFmpeg** and **Google Chrome or Chromium** installed, with the same `apps/web/.env.local` values:
+
+```bash
+npm install
+```
+
+```bash
+npm run worker
+```
+
+- It needs `SUPABASE_SERVICE_ROLE_KEY`, so run it on a trusted server, never on staff computers.
+- Chrome: set `FABLECUT_CHROME` to the Chrome binary. If the worker must run as root (some containers), leave
+  `FABLECUT_CHROME` unset and set `LVS_CHROME_BIN` to the Chrome binary; the bundled wrapper adds `--no-sandbox`.
+  Prefer running as a normal user.
+- Each copy renders one video at a time; start more copies for more throughput. Stuck jobs are retried automatically.
+- Check it end to end with `npm run test:render -w @lvs/web` (renders real test videos, ~2 minutes).
+
+## 9. Production checklist
 
 - Serve over HTTPS only (HSTS and `upgrade-insecure-requests` are sent automatically on HTTPS).
 - Keep `SUPABASE_SERVICE_ROLE_KEY` in your host's secret store.

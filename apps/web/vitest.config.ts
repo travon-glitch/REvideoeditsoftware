@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [tsconfigPaths({ projects: ["./tsconfig.json"] })],
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    include: process.env.LVS_RENDER_TESTS ? ["tests/render/**/*.test.ts"] : ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    exclude: process.env.LVS_RENDER_TESTS ? [] : ["tests/render/**", "node_modules/**"],
     testTimeout: 30_000,
     hookTimeout: 60_000,
     alias: {

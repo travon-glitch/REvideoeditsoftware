@@ -1,0 +1,109 @@
+/*
+ * One render job, start to finish. Storage and database access are passed in
+ * (`deps`) so the same logic runs against Supabase in production and against
+ * local stand-ins in tests.
+ */
+import { readFile } from "node:fs/promises";
+import { checkRenderDocument, type AllowedAsset } from "./sanitize.ts";
+import { renderDocument, type RenderResult } from "./render.ts";
+
+export interface RenderJob {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  aspect: string;
+  document: Record<string, unknown>;
+}
+
+export interface ProjectInfo {
+  id: string;
+  organization_id: string;
+  listing_id: string | null;
+  title: string;
+}
+
+export interface AssetRow {
+  id: string;
+  organization_id: string;
+  listing_id: string | null;
+  project_id: string | null;
+  kind: string;
+  bucket: string;
+  storage_path: string;
+}
+
+export interface JobDeps {
+  loadProject(projectId: string): Promise<ProjectInfo | null>;
+  loadAssets(ids: string[]): Promise<AssetRow[]>;
+  download(bucket: string, path: string): Promise<Uint8Array>;
+  upload(bucket: string, path: string, bytes: Uint8Array, contentType: string): Promise<void>;
+  recordOutput(input: {
+    job: RenderJob; project: ProjectInfo; path: string; fileName: string; result: RenderResult;
+  }): Promise<string>;
+  progress(jobId: string, progress: number): Promise<void>;
+  finish(jobId: string, outcome:
+    | { ok: true; assetId: string; path: string; result: RenderResult }
+    | { ok: false; error: string }): Promise<void>;
+  chrome?: string;
+  timeoutMs?: number;
+}
+
+const KIND_FOR_ASSET: Record<string, AllowedAsset["kind"]> = { photo: "image", audio: "audio", video: "video" };
+
+/**
+ * Only files of this project's company that belong to this project's listing
+ * (photos) or to the project itself (music) may be rendered.
+ */
+export function allowedAssetsFor(project: ProjectInfo, rows: AssetRow[]): AllowedAsset[] {
+  return rows
+    .filter((a) => a.organization_id === project.organization_id)
+    .filter((a) =>
+      (a.bucket === "listing-media" && a.kind === "photo" && !!project.listing_id && a.listing_id === project.listing_id)
+      || (a.bucket === "project-media" && a.kind === "audio" && a.project_id === project.id))
+    .map((a) => ({ id: a.id, bucket: a.bucket, storagePath: a.storage_path, kind: KIND_FOR_ASSET[a.kind]! }));
+}
+
+export function outputPathFor(job: RenderJob): string {
+  return `${job.organization_id}/projects/${job.project_id}/${job.id}.mp4`;
+}
+
+function niceFileName(title: string, aspect: string): string {
+  const slug = title.normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 60) || "listing-video";
+  return `${slug}-${aspect.replace(":", "x")}.mp4`;
+}
+
+export async function processJob(job: RenderJob, deps: JobDeps): Promise<{ ok: boolean; error?: string }> {
+  let result: RenderResult | null = null;
+  try {
+    const project = await deps.loadProject(job.project_id);
+    if (!project || project.organization_id !== job.organization_id) throw new Error("Project not found for this job");
+
+    const media = Array.isArray(job.document.media) ? (job.document.media as { assetId?: unknown }[]) : [];
+    const ids = [...new Set(media.map((m) => String(m.assetId ?? "")))].filter(Boolean);
+    const allowed = allowedAssetsFor(project, await deps.loadAssets(ids));
+    const files = checkRenderDocument(job.document, allowed);
+
+    const bytes = new Map<string, Uint8Array>();
+    for (const f of files) bytes.set(f.fileName, await deps.download(f.bucket, f.storagePath));
+
+    result = await renderDocument({
+      document: job.document,
+      files: bytes,
+      chrome: deps.chrome,
+      timeoutMs: deps.timeoutMs,
+      onProgress: (p) => { void deps.progress(job.id, Math.min(0.97, p * 0.95)); },
+    });
+
+    const path = outputPathFor(job);
+    await deps.upload("video-exports", path, new Uint8Array(await readFile(result.mp4Path)), "video/mp4");
+    const assetId = await deps.recordOutput({ job, project, path, fileName: niceFileName(project.title, job.aspect), result });
+    await deps.finish(job.id, { ok: true, assetId, path, result });
+    return { ok: true };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    await deps.finish(job.id, { ok: false, error: error.slice(0, 1000) });
+    return { ok: false, error };
+  } finally {
+    await result?.cleanup();
+  }
+}

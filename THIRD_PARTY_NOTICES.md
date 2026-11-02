@@ -26,6 +26,11 @@ All runtime dependencies are MIT or ISC licensed at the pinned versions (Next.js
 class-variance-authority, clsx, tailwind-merge, lucide-react (ISC), zod, server-only). A generated SBOM with a CI
 license gate is planned (see `docs/IMPLEMENTATION_PLAN.md`, Phase 0).
 
+## Run-time tools on the render worker (not distributed)
+
+- **FFmpeg** (system package; LGPL/GPL depending on the build) — run as a separate program by FableCut to encode MP4s.
+- **Google Chrome / Chromium** — run headless by FableCut to draw the video frames.
+
 ## Not included
 
 - ffmpeg.wasm core builds (GPL-2.0-or-later) — deliberately not used.

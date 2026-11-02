@@ -1,0 +1,18 @@
+{
+  "name": "@lvs/render-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Background video renderer: runs the vendored FableCut export in an isolated, per-job sandbox and stores MP4s in company storage.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "start": "node --env-file-if-exists=../../apps/web/.env.local src/worker.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lvs/fablecut-core": "*",
+    "@supabase/supabase-js": "2.118.0"
+  }
+}

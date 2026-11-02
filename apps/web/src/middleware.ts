@@ -64,6 +64,11 @@ export async function middleware(request: NextRequest) {
     return redirect;
   };
 
+  if (!user && pathname.startsWith("/api/")) {
+    const res = NextResponse.json({ error: "Please sign in again." }, { status: 401 });
+    res.headers.set("Content-Security-Policy", csp);
+    return res;
+  }
   if (!user && !isPublicPath(pathname)) {
     return redirectTo("/login", pathname === "/" ? undefined : { next: `${pathname}${search}` });
   }

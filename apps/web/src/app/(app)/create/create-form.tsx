@@ -81,12 +81,12 @@ export function CreateVideoForm({
         {errorFor(state, "template_id") ? <p className="text-sm font-medium text-destructive">{errorFor(state, "template_id")}</p> : null}
       </Step>
 
-      <Step n={3} title="Where will you post it?">
+      <Step n={3} title="Which shape first? (you can export all three later)">
         <fieldset className="grid gap-3 sm:grid-cols-2">
           <legend className="sr-only">Video shapes</legend>
-          {ASPECT_RATIOS.filter((r) => advanced || r === "16:9" || r === "9:16").map((r) => (
+          {ASPECT_RATIOS.map((r) => (
             <label key={r} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-4 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-              <input type="checkbox" name="aspect_ratios" value={r} defaultChecked={r === "16:9" || r === "9:16"} className="size-5 accent-[hsl(var(--primary))]" />
+              <input type="radio" name="aspect_ratios" value={r} defaultChecked={r === "16:9"} className="size-5 accent-[hsl(var(--primary))]" />
               <span className="text-base font-medium">{ASPECT_RATIO_LABELS[r]}</span>
             </label>
           ))}
@@ -102,7 +102,7 @@ export function CreateVideoForm({
       <div className="flex flex-col gap-3 rounded-xl bg-sidebar p-5 text-white sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <p className="text-lg">We&apos;ll build a first version using your photos and company branding.</p>
         <SubmitButton size="xl" className="bg-brand text-white hover:bg-brand/90" disabled={listings.length === 0} pendingText="Creating…">
-          Create my video
+          Create and open the editor
         </SubmitButton>
       </div>
     </form>

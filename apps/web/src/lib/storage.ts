@@ -6,6 +6,7 @@ export const BUCKETS = {
   listingMedia: "listing-media",
   brandAssets: "brand-assets",
   videoExports: "video-exports",
+  projectMedia: "project-media",
 } as const;
 export type BucketName = (typeof BUCKETS)[keyof typeof BUCKETS];
 
@@ -66,6 +67,31 @@ export function brandLogoPath(orgId: string, objectId: string, mime: string): st
   const ext = extensionForMime(mime);
   if (!isUuid(orgId) || !isUuid(objectId) || !ext) throw new Error("Invalid storage path parts");
   return `${orgId}/brand/${objectId}.${ext}`;
+}
+
+export const MUSIC_MIME_TYPES = ["audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/wav", "audio/x-wav"] as const;
+export const MAX_MUSIC_BYTES = 25 * 1024 * 1024;
+const MUSIC_EXT: Record<string, string> = {
+  "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/aac": "aac", "audio/wav": "wav", "audio/x-wav": "wav",
+};
+
+export function checkMusicFile(file: { type: string; size: number }): FileCheck {
+  if (!(MUSIC_MIME_TYPES as readonly string[]).includes(file.type)) return { ok: false, reason: "Please use an MP3, M4A, AAC or WAV file." };
+  if (file.size <= 0) return { ok: false, reason: "This file is empty." };
+  if (file.size > MAX_MUSIC_BYTES) return { ok: false, reason: "Music files must be 25 MB or smaller." };
+  return { ok: true };
+}
+
+/** "<org>/projects/<project>/<random>.<ext>" */
+export function projectMusicPath(orgId: string, projectId: string, objectId: string, mime: string): string {
+  const ext = MUSIC_EXT[mime];
+  if (!isUuid(orgId) || !isUuid(projectId) || !isUuid(objectId) || !ext) throw new Error("Invalid storage path parts");
+  return `${orgId}/projects/${projectId}/${objectId}.${ext}`;
+}
+
+export function isProjectMusicPathFor(path: string, orgId: string, projectId: string): boolean {
+  const m = /^([0-9a-f-]{36})\/projects\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.(mp3|m4a|aac|wav)$/i.exec(path);
+  return !!m && m[1] === orgId && m[2] === projectId && isUuid(m[3]);
 }
 
 /** Server-side check for paths sent back by the browser after an upload. */

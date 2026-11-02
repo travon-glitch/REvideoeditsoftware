@@ -53,7 +53,7 @@ export type ListingMemberRow = {
 };
 export type MediaAssetRow = {
   id: string; organization_id: string; listing_id: string | null; uploaded_by: string | null; kind: AssetKind;
-  bucket: "listing-media" | "brand-assets" | "video-exports"; storage_path: string; file_name: string;
+  bucket: "listing-media" | "brand-assets" | "video-exports" | "project-media"; storage_path: string; file_name: string;
   mime_type: string; size_bytes: number; width: number | null; height: number | null;
   duration_seconds: number | null; room_label: string | null; sort_order: number; created_at: string;
   project_id: string | null;
@@ -67,7 +67,7 @@ export type VideoProjectRow = {
   id: string; organization_id: string; listing_id: string | null; template_id: string | null;
   brand_kit_id: string | null; created_by: string | null; title: string; status: VideoStatus;
   aspect_ratios: string[]; settings: Json; document: Json | null; revision: number;
-  thumbnail_path: string | null; created_at: string; updated_at: string;
+  thumbnail_path: string | null; created_at: string; updated_at: string; edit_plan: Json | null;
 };
 export type ProjectRevisionRow = {
   project_id: string; revision: number; organization_id: string; document: Json; author_id: string | null;
@@ -85,6 +85,8 @@ export type RenderJobRow = {
   id: string; organization_id: string; project_id: string; revision: number; preset: string; status: JobStatus;
   progress: number; output_asset_id: string | null; error_message: string | null; requested_by: string | null;
   created_at: string; started_at: string | null; finished_at: string | null;
+  aspect: "16:9" | "9:16" | "1:1"; document: Json; attempts: number; worker_id: string | null; output_path: string | null;
+  duration_seconds: number | null; width: number | null; height: number | null; size_bytes: number | null;
 };
 export type AuditLogRow = {
   id: number; organization_id: string | null; actor_id: string | null; action: string; target_type: string | null;

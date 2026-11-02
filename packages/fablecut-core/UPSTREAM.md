@@ -19,12 +19,13 @@ Files are unchanged byte-for-byte under `upstream/`. Bundled fonts in `upstream/
 | Stage | Use |
 |---|---|
 | 2 (now) | `index.js` exposes Node-safe document modules (`edit-ops`, `project-ops`, `motion`, `templates`, `delivery`, `sequences`). Nothing is served to browsers. |
-| 3 | Editor UI served from an isolated origin, talking to the tenant-scoped Editor Gateway (not upstream `server.js`). |
-| 4 | Headless-Chromium render workers run the upstream Fast export. |
+| 5 (now) | `ProjectOps.checkProject` validates every saved project; the **render worker** (`packages/render-worker`) runs upstream `server.js` + its headless Fast export **only inside a per-job sandbox** (temp data dir, 127.0.0.1, random port, minimal environment) to produce MP4s. |
+| later | Full editor UI from an isolated origin through a tenant-scoped gateway (patches P01–P07). |
 
-## Never deployed
+## Never exposed to users
 
-`server.js`, `mcp-server.js`, `cli.js` — single-user and unauthenticated by design (see `docs/OPEN_SOURCE_AUDIT.md` F1–F10).
+`server.js` is started only by the render worker, per job, on loopback, with only that job's files; it is never
+reachable from the web app or the network. `mcp-server.js` and `cli.js` are not used.
 
 ## Patch queue (applied in Stage 3, kept as files in `patches/`)
 

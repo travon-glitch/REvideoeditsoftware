@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { authorizeAction, type ActionResult } from "@/lib/auth/session";
 import { createVideoSchema, fieldErrors, formDataToObject } from "@/lib/validation";
-import { buildStarterDocument, type AspectRatio } from "@/lib/video/starter-document";
+import { composeDocument, type Aspect } from "@/lib/video/plan";
+import { planForListing } from "@/lib/video/editor-data";
 import { validateFableCutDocument } from "@/lib/video/validate-document";
 import type { Json } from "@/lib/database.types";
-import { MAX_PHOTOS, MIN_PHOTOS, formatOpenHouse, orderForVideo } from "@/lib/listings";
+import { MAX_PHOTOS, MIN_PHOTOS } from "@/lib/listings";
 
 export async function createVideo(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const auth = await authorizeAction("videos.create");
@@ -38,15 +39,10 @@ export async function createVideo(_prev: ActionResult | null, formData: FormData
   }
 
   const title = input.title ?? `${listing.address_line} — ${template.name}`;
-  const primary = input.aspect_ratios[0] as AspectRatio;
-  const doc = buildStarterDocument({
-    title,
-    aspect: primary,
-    listing: { ...listing, open_house_text: formatOpenHouse(listing.open_house_date, listing.open_house_start, listing.open_house_end) },
-    photos: orderForVideo(photos, listing.cover_asset_id),
-    template: { slug: template.slug, style: (template.style ?? {}) as Record<string, unknown> },
-    brand: ctx.brandKit,
-  });
+  const aspect = input.aspect_ratios[0] as Aspect;
+  const assets = { photos, music: [] };
+  const plan = planForListing(listing, photos, aspect);
+  const doc = composeDocument({ plan, title, photos: assets.photos, music: [], brand: ctx.brandKit });
   const check = validateFableCutDocument(doc);
   if (!check.ok) return { ok: false, message: "We couldn't prepare this video. Please try again or contact your administrator." };
 
@@ -59,7 +55,8 @@ export async function createVideo(_prev: ActionResult | null, formData: FormData
     title,
     status: "draft",
     aspect_ratios: input.aspect_ratios,
-    settings: { photoCount: photos.length, coverAssetId: listing.cover_asset_id } as Json,
+    settings: { photoCount: photos.length, coverAssetId: listing.cover_asset_id, template: template.slug } as Json,
+    edit_plan: plan as unknown as Json,
     document: doc as Json,
     revision: 1,
   }).select("id").single();
@@ -78,5 +75,5 @@ export async function createVideo(_prev: ActionResult | null, formData: FormData
   });
 
   revalidatePath("/videos");
-  redirect(`/videos/${project.id}?created=1`);
+  redirect(`/videos/${project.id}/edit`);
 }

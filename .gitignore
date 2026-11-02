@@ -19,3 +19,6 @@ supabase/.temp/
 
 .DS_Store
 npm-debug.log*
+
+# Render test outputs
+apps/web/test-output/

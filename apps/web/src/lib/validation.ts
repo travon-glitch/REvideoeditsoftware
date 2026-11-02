@@ -144,19 +144,18 @@ export const listingDraftSchema = z.object({
 export const listingSchema = listingDraftSchema;
 export type ListingInput = z.infer<typeof listingSchema>;
 
-export const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:5"] as const;
+export const ASPECT_RATIOS = ["16:9", "9:16", "1:1"] as const;
 export const ASPECT_RATIO_LABELS: Record<(typeof ASPECT_RATIOS)[number], string> = {
   "16:9": "Wide (YouTube, website)",
   "9:16": "Vertical (Reels, TikTok, Shorts)",
   "1:1": "Square (feed posts)",
-  "4:5": "Portrait (feed posts)",
 };
 
 export const createVideoSchema = z.object({
   listing_id: z.string().uuid("Please choose a listing."),
   template_id: z.string().uuid("Please choose a style."),
   title: trimmed(160).optional().transform((v) => v || null),
-  aspect_ratios: z.array(z.enum(ASPECT_RATIOS)).min(1, "Pick at least one video shape.").max(4),
+  aspect_ratios: z.array(z.enum(ASPECT_RATIOS)).min(1, "Pick at least one video shape.").max(3),
 });
 
 const hexColor = z.string().trim().regex(/^#[0-9A-Fa-f]{6}$/, "Use a color like #1D4ED8.");
