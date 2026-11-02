@@ -12,7 +12,7 @@ type Db = Awaited<ReturnType<typeof createClient>>;
 
 export type StoreResult<T> = { ok: true; value: T } | { ok: false; status: number; message: string; revision?: number | null };
 
-export const RENDER_FIELDS = "id,aspect,status,progress,error_message,created_at,started_at,finished_at,duration_seconds,width,height,size_bytes,output_asset_id";
+export const RENDER_FIELDS = "id,aspect,status,progress,error_message,created_at,started_at,finished_at,duration_seconds,width,height,size_bytes,output_asset_id,label";
 
 export function toEasyListing(l: ListingRow): EasyListing {
   return {
@@ -43,7 +43,7 @@ export async function savePlan(db: Db, ctx: SessionContext, projectId: string, p
   const assets = await loadProjectAssets(db, project);
   const misuse = planUsesOnly(plan, assets);
   if (misuse) return { ok: false, status: 400, message: misuse };
-  const document = composeDocument({ plan, title: project.title, photos: assets.photos, music: assets.music, brand: ctx.brandKit });
+  const document = composeDocument({ plan, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, brand: ctx.brandKit });
   const check = validateFableCutDocument(document);
   if (!check.ok) return { ok: false, status: 400, message: "This change can't be saved. Please undo it and try again." };
 
@@ -71,7 +71,7 @@ export async function savePlan(db: Db, ctx: SessionContext, projectId: string, p
 }
 
 /** Queues one render per shape from the saved plan, for the background worker. */
-export async function queueRenders(db: Db, ctx: SessionContext, projectId: string, plan: EditPlan, aspects: Aspect[]): Promise<StoreResult<unknown[]>> {
+export async function queueRenders(db: Db, ctx: SessionContext, projectId: string, plan: EditPlan, aspects: Aspect[], label?: string): Promise<StoreResult<unknown[]>> {
   const { data: access } = await db.rpc("project_access", { p_project: projectId });
   if (access !== "edit") return { ok: false, status: access === "read" ? 403 : 404, message: "Only people who can edit this video can make it." };
   const { data: project } = await db.from("video_projects").select("*").eq("id", projectId).maybeSingle();
@@ -82,11 +82,11 @@ export async function queueRenders(db: Db, ctx: SessionContext, projectId: strin
   const assets = await loadProjectAssets(db, project);
   const rows = [];
   for (const aspect of [...new Set(aspects)]) {
-    const document = composeDocument({ plan, aspect, title: project.title, photos: assets.photos, music: assets.music, brand: ctx.brandKit });
+    const document = composeDocument({ plan, aspect, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, brand: ctx.brandKit });
     if (!validateFableCutDocument(document).ok) return { ok: false, status: 400, message: "This video can't be made yet. Please check your photos." };
     rows.push({
       organization_id: project.organization_id, project_id: projectId, revision: project.revision, preset: "master-1080p",
-      aspect, document: document as Json, requested_by: ctx.userId,
+      aspect, document: document as Json, requested_by: ctx.userId, ...(label ? { label: label.slice(0, 120) } : {}),
     });
   }
   const { data, error } = await db.from("render_jobs").insert(rows).select(RENDER_FIELDS);

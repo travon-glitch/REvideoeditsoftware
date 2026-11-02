@@ -7,6 +7,7 @@ export const BUCKETS = {
   brandAssets: "brand-assets",
   videoExports: "video-exports",
   projectMedia: "project-media",
+  aiClips: "ai-clips",
 } as const;
 export type BucketName = (typeof BUCKETS)[keyof typeof BUCKETS];
 

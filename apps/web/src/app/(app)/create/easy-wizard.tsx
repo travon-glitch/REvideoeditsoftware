@@ -18,6 +18,7 @@ import {
   STYLES, autoDirector, buildEasyPlan, orderPhotos, type EasyBrand, type EasyListing, type EasySettings, type StyleId,
 } from "@/lib/video/easy";
 import type { EditPlan } from "@/lib/video/plan";
+import type { CameraSpec } from "@lvs/camera-presets";
 import { cn } from "@/lib/utils";
 import { deletePhoto, registerPhotos, reorderPhotos, setMainPhoto } from "../listings/actions";
 import { createEasyProject, listEasyPhotos, saveEasyDetails, startEasyListing } from "./actions";
@@ -28,7 +29,7 @@ import {
 
 export type { WizardDetails, WizardRender };
 
-export interface WizardPhoto { id: string; url: string | null; thumb: string | null; file_name: string }
+export interface WizardPhoto { id: string; url: string | null; thumb: string | null; file_name: string; camera?: CameraSpec | null }
 
 export interface WizardProps {
   orgId: string;

@@ -163,3 +163,4 @@ export function kenBurnsKeyframes(
     y: [{ t: 0, v: 0 }, { t: end, v: dy, ease: "ease-in-out" }],
   };
 }
+export * from "./studio.ts";

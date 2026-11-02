@@ -41,6 +41,7 @@
     "tailwindcss-animate": "1.0.7",
     "typescript": "5.9.3",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest": "3.2.7"
+    "vitest": "3.2.7",
+    "@lvs/ai-motion": "*"
   }
 }

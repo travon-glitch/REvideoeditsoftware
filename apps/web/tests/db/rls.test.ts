@@ -58,7 +58,7 @@ describe("migration", () => {
     expect(t.rows.map((r) => r.slug)).toEqual(["luxury", "modern", "just-listed", "open-house", "social-reel", "highlights"]);
     const b = await db.query<{ id: string; public: boolean }>(`select id, public from storage.buckets order by id`);
     expect(b.rows).toEqual([
-      { id: "brand-assets", public: false }, { id: "listing-media", public: false },
+      { id: "ai-clips", public: false }, { id: "brand-assets", public: false }, { id: "listing-media", public: false },
       { id: "project-media", public: false }, { id: "video-exports", public: false },
     ]);
   });
@@ -238,9 +238,10 @@ describe("roles and permissions", () => {
     await setRole(ids.superAdmin, ids.editor2, "editor");
   });
 
-  it("editors may queue AI jobs but cannot fake results", async () => {
-    await asUser(ids.editor, (tx) => tx.query(
-      `insert into public.generation_jobs (organization_id, requested_by, kind, provider, model) values ($1, $2, 'image_to_video', 'mock', 'm1')`, [orgA, ids.editor]));
+  it("AI jobs must name a photo of a listing the person edits, and results can't be faked", async () => {
+    // (Stage 7) a job without a source photo is refused; the allowed case is in camera-studio.test.ts
+    await rejects(asUser(ids.editor, (tx) => tx.query(
+      `insert into public.generation_jobs (organization_id, requested_by, kind, provider, model) values ($1, $2, 'image_to_video', 'local-depth', 'm1')`, [orgA, ids.editor])), /row-level security/);
     await rejects(asUser(ids.editor, (tx) => tx.query(
       `insert into public.generation_jobs (organization_id, requested_by, kind, provider, model, status) values ($1, $2, 'image_to_video', 'mock', 'm1', 'succeeded')`, [orgA, ids.editor])), /row-level security/);
     await rejects(asUser(ids.editor, (tx) => tx.query(`update public.generation_jobs set status = 'succeeded'`)), /permission denied/);

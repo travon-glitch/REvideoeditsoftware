@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { authorizeAction, type ActionResult } from "@/lib/auth/session";
 import { easyDetailsSchema, fieldErrors } from "@/lib/validation";
 import { isUuid } from "@/lib/storage";
-import { signListingPhotos, type SignedPhoto } from "@/lib/storage-server";
+import { parseCamera, signListingPhotos, type SignedPhoto } from "@/lib/storage-server";
 import { MAX_PHOTOS, MIN_PHOTOS } from "@/lib/listings";
 import { composeDocument } from "@/lib/video/plan";
 import { STYLES, buildEasyPlan, easySettingsSchema } from "@/lib/video/easy";
@@ -67,7 +67,7 @@ export async function createEasyProject(input: unknown): Promise<ActionResult<{ 
   const [{ data: listing }, { data: template }, { data: photos }] = await Promise.all([
     db.from("listings").select("*").eq("id", listingId).maybeSingle(),
     db.from("video_templates").select("id,name").is("organization_id", null).eq("slug", settings.style).maybeSingle(),
-    db.from("media_assets").select("id,storage_path,file_name,width,height").eq("listing_id", listingId).eq("kind", "photo")
+    db.from("media_assets").select("id,storage_path,file_name,width,height,camera_spec").eq("listing_id", listingId).eq("kind", "photo")
       .order("sort_order").limit(MAX_PHOTOS),
   ]);
   if (!listing) return { ok: false, message: "That listing wasn't found." };
@@ -76,7 +76,7 @@ export async function createEasyProject(input: unknown): Promise<ActionResult<{ 
   }
 
   const plan = buildEasyPlan({
-    listing: toEasyListing(listing), photos, settings, order, skipped,
+    listing: toEasyListing(listing), photos: photos.map((p) => ({ ...p, camera: parseCamera(p.camera_spec) })), settings, order, skipped,
     brand: ctx.brandKit ? { company_name: ctx.brandKit.company_name, outro_text: ctx.brandKit.outro_text } : null,
   });
   const title = `${listing.address_line.trim() || "New listing"} — ${STYLES[settings.style].name}`;
@@ -118,7 +118,7 @@ export async function listEasyPhotos(listingId: string): Promise<ActionResult<{ 
   const db = await createClient();
   const [{ data: listing }, { data: rows }] = await Promise.all([
     db.from("listings").select("cover_asset_id").eq("id", listingId).maybeSingle(),
-    db.from("media_assets").select("id,storage_path,thumbnail_path,file_name").eq("listing_id", listingId).eq("kind", "photo").order("sort_order"),
+    db.from("media_assets").select("id,storage_path,thumbnail_path,file_name,camera_spec").eq("listing_id", listingId).eq("kind", "photo").order("sort_order"),
   ]);
   if (!listing) return { ok: false, message: "Listing not found." };
   return { ok: true, data: { photos: await signListingPhotos(rows ?? []), coverId: listing.cover_asset_id } };

@@ -1,12 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { getMove } from "@lvs/camera-presets";
+import { transformAt } from "@lvs/camera-presets";
 import {
-  CANVAS_1080, STILL, TRANSITION_SECONDS, resolveScene, sceneStarts, totalDuration, type EditPlan, type TextOverlay,
+  CANVAS_1080, TRANSITION_SECONDS, resolveScene, sceneCamera, sceneStarts, totalDuration, type EditPlan, type TextOverlay,
 } from "@/lib/video/plan";
 import { cn } from "@/lib/utils";
-
-const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
 
 /**
  * One frame of the video at `time` seconds. Uses the same scene timing,
@@ -14,9 +12,11 @@ const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 
  * the final MP4 is rendered by FableCut's own compositor.
  */
 export function StageView({
-  plan, time, photoUrls, brandColor, className, fit = true,
+  plan, time, photoUrls, brandColor, className, fit = true, clipUrls,
 }: {
   plan: EditPlan; time: number; photoUrls: Record<string, string | null>; brandColor: string; className?: string;
+  /** Playable links of AI camera clips used by scenes. */
+  clipUrls?: Record<string, string | null>;
   /** Limit the width of tall and square videos so they fit on screen. */
   fit?: boolean;
 }) {
@@ -34,16 +34,24 @@ export function StageView({
           const local = time - start;
           if (local < 0 || local >= len) return null;
           const opacity = i > 0 && T > 0 && local < T ? local / T : 1;
-          const kb = s.move === STILL ? null : getMove(s.move)?.kenBurns;
-          const p = easeInOut(Math.min(1, local / len));
-          const scale = kb ? kb.scaleFrom + (kb.scaleTo - kb.scaleFrom) * p : 1;
+          const clipUrl = s.clipAssetId ? clipUrls?.[s.clipAssetId] : null;
+          if (clipUrl) {
+            return (
+              <div key={s.id} className="absolute inset-0" style={{ opacity, zIndex: i }}>
+                <ClipFrame url={clipUrl} time={local} />
+              </div>
+            );
+          }
+          // exactly the keyframes FableCut renders (x/y in px of the 1080p canvas → % of the frame)
+          const cam = sceneCamera(s, len, canvas);
+          const tr = transformAt(cam?.keyframes, local);
           const url = photoUrls[s.assetId];
           return (
             <div key={s.id} className="absolute inset-0" style={{ opacity, zIndex: i }}>
               {url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={url} alt="" className="size-full object-cover"
-                  style={{ transform: `translate(${(kb?.panX ?? 0) * p}%, ${(kb?.panY ?? 0) * p}%) scale(${scale})` }} />
+                  style={{ transform: `translate(${(tr.x / canvas.width) * 100}%, ${(tr.y / canvas.height) * 100}%) rotate(${tr.rotation}deg) scale(${tr.scale})` }} />
               ) : <div className="size-full bg-muted" />}
             </div>
           );
@@ -52,6 +60,16 @@ export function StageView({
       </div>
     </div>
   );
+}
+
+/** A video frame at `time` seconds (AI clips in the preview). */
+function ClipFrame({ url, time }: { url: string; time: number }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (v && Math.abs(v.currentTime - time) > 0.08) v.currentTime = time;
+  }, [time]);
+  return <video ref={ref} src={url} muted playsInline preload="auto" className="size-full object-cover" />;
 }
 
 function StageText({ t, plan, time, brandColor }: { t: TextOverlay; plan: EditPlan; time: number; brandColor: string }) {

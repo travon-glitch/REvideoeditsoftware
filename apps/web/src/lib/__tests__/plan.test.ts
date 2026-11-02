@@ -85,11 +85,11 @@ describe("plan → FableCut document", () => {
   it("refuses photos and music that aren't the project's own", () => {
     const p = base();
     p.scenes[0] = { ...p.scenes[0]!, assetId: randomUUID() };
-    expect(planUsesOnly(p, { photos, music })).toMatch(/isn't part of this listing/);
+    expect(planUsesOnly(p, { photos, music, clips: [] })).toMatch(/isn't part of this listing/);
     expect(() => composeDocument({ plan: p, title: "t", photos, music, brand: null })).toThrow(/not available/);
     const q = base();
     q.music = { assetId: randomUUID(), volume: 1, fadeOut: false };
-    expect(planUsesOnly(q, { photos, music })).toMatch(/music/);
+    expect(planUsesOnly(q, { photos, music, clips: [] })).toMatch(/music/);
   });
 
   it("rejects invalid plans", () => {

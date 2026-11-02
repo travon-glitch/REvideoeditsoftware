@@ -4,7 +4,7 @@ import { BUCKETS } from "@/lib/storage";
 import { formatPrice } from "@/lib/utils";
 import { formatOpenHouse } from "@/lib/listings";
 import { specsLine } from "@/lib/video/starter-document";
-import { ASPECTS, initialPlan, planSchema, type Aspect, type EditPlan, type PlanMusic, type PlanPhoto } from "@/lib/video/plan";
+import { ASPECTS, initialPlan, planSchema, type Aspect, type EditPlan, type PlanClip, type PlanMusic, type PlanPhoto } from "@/lib/video/plan";
 import type { BrandKitRow, ListingRow, VideoProjectRow } from "@/lib/database.types";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -12,19 +12,25 @@ type Db = Awaited<ReturnType<typeof createClient>>;
 export interface EditorAssets {
   photos: PlanPhoto[];
   music: PlanMusic[];
+  /** AI camera clips made from the listing's photos. */
+  clips: PlanClip[];
 }
 
-/** Photos of the project's listing and music uploaded to the project — the only files it may use. RLS applies. */
+/** Photos (and AI clips) of the project's listing and music uploaded to the project — the only files it may use. RLS applies. */
 export async function loadProjectAssets(db: Db, project: Pick<VideoProjectRow, "id" | "listing_id">): Promise<EditorAssets> {
-  const [photos, music] = await Promise.all([
+  const [photos, music, clips] = await Promise.all([
     project.listing_id
       ? db.from("media_assets").select("id,storage_path,thumbnail_path,file_name,width,height").eq("listing_id", project.listing_id).eq("kind", "photo").order("sort_order")
       : Promise.resolve({ data: [] as PlanPhoto[] }),
     db.from("media_assets").select("id,storage_path,file_name,duration_seconds").eq("project_id", project.id).eq("kind", "audio").eq("bucket", BUCKETS.projectMedia).order("created_at"),
+    project.listing_id
+      ? db.from("media_assets").select("id,storage_path,file_name,width,height,duration_seconds,source_asset_id").eq("listing_id", project.listing_id).eq("kind", "ai_clip").eq("bucket", BUCKETS.aiClips).order("created_at")
+      : Promise.resolve({ data: [] as PlanClip[] }),
   ]);
   return {
     photos: (photos.data ?? []) as PlanPhoto[],
     music: ((music.data ?? []) as PlanMusic[]).map((m) => ({ ...m, duration_seconds: m.duration_seconds == null ? null : Number(m.duration_seconds) })),
+    clips: ((clips.data ?? []) as PlanClip[]).map((c) => ({ ...c, duration_seconds: c.duration_seconds == null ? null : Number(c.duration_seconds) })),
   };
 }
 
@@ -54,7 +60,9 @@ export function currentPlan(project: VideoProjectRow, listing: ListingRow | null
   if (parsed.success) {
     const photoIds = new Set(assets.photos.map((p) => p.id));
     const musicIds = new Set(assets.music.map((m) => m.id));
-    const scenes = parsed.data.scenes.filter((s) => photoIds.has(s.assetId)); // photos removed from the listing drop out
+    const clipIds = new Set(assets.clips.map((c) => c.id));
+    const scenes = parsed.data.scenes.filter((s) => photoIds.has(s.assetId)) // photos removed from the listing drop out
+      .map((s) => (s.clipAssetId && !clipIds.has(s.clipAssetId) ? { ...s, clipAssetId: undefined } : s));
     if (scenes.length > 0) {
       const sceneIds = new Set(scenes.map((s) => s.id));
       return {
@@ -74,6 +82,8 @@ export function planUsesOnly(plan: EditPlan, assets: EditorAssets): string | nul
   const photoIds = new Set(assets.photos.map((p) => p.id));
   const bad = plan.scenes.find((s) => !photoIds.has(s.assetId));
   if (bad) return "A scene uses a photo that isn't part of this listing.";
+  const badClip = plan.scenes.find((s) => s.clipAssetId && !assets.clips.some((c) => c.id === s.clipAssetId && c.source_asset_id === s.assetId));
+  if (badClip) return "A scene uses an AI clip that wasn't made from its photo.";
   if (plan.music.assetId && !assets.music.some((m) => m.id === plan.music.assetId)) return "The chosen music isn't part of this project.";
   return null;
 }

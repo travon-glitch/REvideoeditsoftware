@@ -53,10 +53,11 @@ export type ListingMemberRow = {
 };
 export type MediaAssetRow = {
   id: string; organization_id: string; listing_id: string | null; uploaded_by: string | null; kind: AssetKind;
-  bucket: "listing-media" | "brand-assets" | "video-exports" | "project-media"; storage_path: string; file_name: string;
+  bucket: "listing-media" | "brand-assets" | "video-exports" | "project-media" | "ai-clips"; storage_path: string; file_name: string;
   mime_type: string; size_bytes: number; width: number | null; height: number | null;
   duration_seconds: number | null; room_label: string | null; sort_order: number; created_at: string;
   project_id: string | null; thumbnail_path: string | null;
+  camera_spec: Json | null; source_asset_id: string | null; generation_job_id: string | null; ai_review: Json | null; ai_decision: Json | null;
 };
 export type VideoTemplateRow = {
   id: string; organization_id: string | null; slug: string; name: string; description: string;
@@ -80,6 +81,7 @@ export type GenerationJobRow = {
   camera_move: string | null; input: Json; status: JobStatus; provider_job_id: string | null;
   output_asset_id: string | null; error_message: string | null; cost_estimate_cents: number | null;
   cost_actual_cents: number | null; created_at: string; started_at: string | null; finished_at: string | null;
+  progress: number; attempts: number; worker_id: string | null; review: Json | null;
 };
 export type RenderJobRow = {
   id: string; organization_id: string; project_id: string; revision: number; preset: string; status: JobStatus;
@@ -87,6 +89,7 @@ export type RenderJobRow = {
   created_at: string; started_at: string | null; finished_at: string | null;
   aspect: "16:9" | "9:16" | "1:1"; document: Json; attempts: number; worker_id: string | null; output_path: string | null;
   duration_seconds: number | null; width: number | null; height: number | null; size_bytes: number | null;
+  label: string | null;
 };
 export type AuditLogRow = {
   id: number; organization_id: string | null; actor_id: string | null; action: string; target_type: string | null;
@@ -146,6 +149,7 @@ export type Database = {
       reorder_listing_photos: { Args: { p_listing_id: string; p_asset_ids: string[] }; Returns: undefined };
       listing_access: { Args: { p_listing: string }; Returns: "none" | "read" | "edit" };
       project_access: { Args: { p_project: string }; Returns: "none" | "read" | "edit" };
+      review_ai_clip: { Args: { p_asset: string; p_decision: "approved" | "problem"; p_note?: string | null }; Returns: Json };
       bootstrap_is_complete: { Args: Record<PropertyKey, never>; Returns: boolean };
       bootstrap_create_token: { Args: { p_token_hash: string; p_ttl_minutes?: number }; Returns: string };
       bootstrap_check_token: { Args: { p_token_hash: string }; Returns: boolean };

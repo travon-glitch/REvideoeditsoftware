@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, CircleCheck, Download, GripVertical, LoaderCircle, Music, Plus, Trash2, TriangleAlert, Type, Upload, Wand2,
 } from "lucide-react";
-import { CAMERA_MOVES, STILL_NAME } from "@lvs/camera-presets";
+import { CAMERA_MOVES, STILL_NAME, getStudioMove } from "@lvs/camera-presets";
+import Link from "next/link";
+import { Clapperboard, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,10 +38,12 @@ const DURATIONS = [1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
 const uid = (p: string) => `${p}${Math.random().toString(36).slice(2, 9)}`;
 
 export function VideoEditor({
-  projectId, orgId, initialPlan, initialRevision, photos, initialMusic, initialRenders, brandColor, canDownload,
+  projectId, orgId, initialPlan, initialRevision, photos, initialMusic, initialRenders, brandColor, canDownload, clips = [],
 }: {
   projectId: string; orgId: string; initialPlan: EditPlan; initialRevision: number; photos: EditorPhoto[];
   initialMusic: EditorMusic[]; initialRenders: EditorRender[]; brandColor: string; canDownload: boolean;
+  /** AI camera clips of the listing (playable links), for the preview. */
+  clips?: { id: string; url: string | null }[];
 }) {
   const history = useHistory(initialPlan);
   const plan = history.value;
@@ -58,6 +62,7 @@ export function VideoEditor({
   latest.current = plan;
 
   const photoUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, p.url])), [photos]);
+  const clipUrls = useMemo(() => Object.fromEntries(clips.map((c) => [c.id, c.url])), [clips]);
   const thumbUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, p.thumb ?? null])), [photos]);
   const photoIndex = useMemo(() => new Map(photos.map((p, i) => [p.id, i + 1])), [photos]);
   const total = totalDuration(plan);
@@ -171,7 +176,7 @@ export function VideoEditor({
         {/* Preview + format + export */}
         <div className="flex flex-col gap-6">
           <Card><CardContent className="pt-6">
-            <PreviewPlayer plan={plan} photoUrls={photoUrls} musicUrl={music.find((m) => m.id === plan.music.assetId)?.url ?? null} brandColor={brandColor} />
+            <PreviewPlayer plan={plan} photoUrls={photoUrls} clipUrls={clipUrls} musicUrl={music.find((m) => m.id === plan.music.assetId)?.url ?? null} brandColor={brandColor} />
           </CardContent></Card>
 
           <Card>
@@ -256,10 +261,17 @@ export function VideoEditor({
                         <span className="text-sm font-semibold">Scene {i + 1} <span className="font-normal text-muted-foreground">· photo {photoIndex.get(s.assetId)}</span></span>
                         <div className="flex flex-wrap gap-2">
                           <label className="sr-only" htmlFor={`move-${s.id}`}>Camera move for scene {i + 1}</label>
-                          <NativeSelect id={`move-${s.id}`} className="h-9 w-40 text-sm" value={s.move} onChange={(e) => setScene(i, { move: e.target.value })}>
+                          <NativeSelect id={`move-${s.id}`} className="h-9 w-40 text-sm" value={s.camera || s.clipAssetId ? "" : s.move}
+                            onChange={(e) => { if (e.target.value) setScene(i, { move: e.target.value, camera: undefined, clipAssetId: undefined }); }}>
+                            {s.camera || s.clipAssetId ? <option value="">{s.clipAssetId ? "AI clip" : `Studio: ${getStudioMove(s.camera!.move)?.name ?? "custom"}`}</option> : null}
                             <option value={STILL}>{STILL_NAME}</option>
                             {CAMERA_MOVES.map((m) => <option key={m.id} value={m.id}>{m.name}{m.aiOnly ? " (simple)" : ""}</option>)}
                           </NativeSelect>
+                          <Button asChild size="sm" variant="outline" className="h-9">
+                            <Link href={`/camera-studio?project=${projectId}&scene=${s.id}`} aria-label={`Camera Studio for scene ${i + 1}`}>
+                              {s.clipAssetId ? <Sparkles aria-hidden="true" /> : <Clapperboard aria-hidden="true" />}Camera
+                            </Link>
+                          </Button>
                           <label className="sr-only" htmlFor={`dur-${s.id}`}>Length of scene {i + 1}</label>
                           <NativeSelect id={`dur-${s.id}`} className="h-9 w-24 text-sm" value={String(s.duration)} onChange={(e) => setScene(i, { duration: Number(e.target.value) })}>
                             {[...new Set([...DURATIONS, s.duration])].sort((a, b) => a - b).map((d) => <option key={d} value={d}>{d} s</option>)}

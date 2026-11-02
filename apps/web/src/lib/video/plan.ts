@@ -9,7 +9,8 @@
  * reopen it exactly.
  */
 import { z } from "zod";
-import { CAMERA_MOVES, getMove, kenBurnsKeyframes } from "@lvs/camera-presets";
+import { CAMERA_MOVES, cameraKeyframes, getMove, kenBurnsKeyframes, type CameraChannels } from "@lvs/camera-presets";
+import { cameraSpecSchema } from "./camera";
 
 export const ASPECTS = ["16:9", "9:16", "1:1"] as const;
 export type Aspect = (typeof ASPECTS)[number];
@@ -58,6 +59,10 @@ export const sceneSchema = z.object({
   assetId: uuid,
   move: z.string().refine((m) => m === STILL || !!getMove(m), "Unknown camera move"),
   duration: z.number().min(MIN_SCENE_SECONDS).max(MAX_SCENE_SECONDS),
+  /** A Camera Studio move (replaces `move` when set). */
+  camera: cameraSpecSchema.optional(),
+  /** An AI camera clip made from this scene's photo, played instead of the photo. */
+  clipAssetId: uuid.optional(),
 });
 
 /** Text can follow a specific photo, or stay on the first / last scene whatever the order. */
@@ -115,6 +120,8 @@ export type EditPlan = z.infer<typeof planSchema>;
 
 export interface PlanPhoto { id: string; storage_path: string; file_name: string; width: number | null; height: number | null; thumbnail_path?: string | null }
 export interface PlanMusic { id: string; storage_path: string; file_name: string; duration_seconds: number | null }
+/** An AI camera clip (video) made from one of the listing's photos. */
+export interface PlanClip { id: string; storage_path: string; file_name: string; width: number | null; height: number | null; duration_seconds: number | null; source_asset_id: string | null }
 export interface PlanBrand { primary_color: string; heading_font: string; body_font: string }
 
 const round = (n: number) => Math.round(n * 1000) / 1000;
@@ -224,6 +231,24 @@ function textProps(t: TextOverlay, canvas: { width: number; height: number }, br
 }
 
 /**
+ * The camera keyframes of one scene (also used by the browser preview, so the
+ * preview moves exactly like the export): a Camera Studio move if set,
+ * otherwise the scene's simple move, or nothing for "Hold Still".
+ */
+export function sceneCamera(
+  s: Pick<Scene, "move" | "camera">, length: number, canvas: { width: number; height: number },
+  photo?: { width: number | null; height: number | null } | null,
+): { keyframes: Partial<CameraChannels>; props?: Record<string, number> } | null {
+  if (s.camera) {
+    const size = photo?.width && photo.height ? { width: photo.width, height: photo.height } : null;
+    const r = cameraKeyframes(s.camera, length, canvas, size);
+    return { keyframes: r.keyframes, props: r.props };
+  }
+  if (s.move === STILL) return null;
+  return { keyframes: kenBurnsKeyframes(s.move, length, canvas) };
+}
+
+/**
  * Plan → FableCut project.json. Throws if a scene or the music points at an
  * asset that isn't in `photos` / `music` (callers pass only assets the person may use).
  */
@@ -234,6 +259,8 @@ export function composeDocument(input: {
   music: PlanMusic[];
   brand: PlanBrand | null;
   aspect?: Aspect;
+  /** AI camera clips the plan may use. */
+  clips?: PlanClip[];
 }): Record<string, unknown> {
   const plan = input.plan;
   const aspect = input.aspect ?? plan.aspect;
@@ -246,11 +273,24 @@ export function composeDocument(input: {
   });
   const music = plan.music.assetId ? input.music.find((m) => m.id === plan.music.assetId) : null;
   if (plan.music.assetId && !music) throw new Error("The chosen music is not available");
+  const clipById = new Map((input.clips ?? []).map((c) => [c.id, c]));
+  const usedClips = [...new Set(plan.scenes.flatMap((s) => (s.clipAssetId ? [s.clipAssetId] : [])))].map((idv) => {
+    const c = clipById.get(idv);
+    if (!c) throw new Error(`AI clip ${idv} is not available`);
+    return c;
+  });
 
   const media: Record<string, unknown>[] = usedPhotos.map((p) => ({
     id: mediaIdFor(p.id), assetId: p.id, name: p.file_name, kind: "image", src: `/media/${mediaFileName(p.storage_path)}`,
     ...(p.width && p.height ? { width: p.width, height: p.height } : {}),
   }));
+  for (const c of usedClips) {
+    media.push({
+      id: mediaIdFor(c.id), assetId: c.id, name: c.file_name, kind: "video", src: `/media/${mediaFileName(c.storage_path)}`,
+      ...(c.width && c.height ? { width: c.width, height: c.height } : {}),
+      ...(c.duration_seconds ? { duration: Number(c.duration_seconds) } : {}),
+    });
+  }
   if (music) {
     media.push({
       id: mediaIdFor(music.id), assetId: music.id, name: music.file_name, kind: "audio", src: `/media/${mediaFileName(music.storage_path)}`,
@@ -263,19 +303,29 @@ export function composeDocument(input: {
   const T = plan.transition === "none" ? 0 : TRANSITION_SECONDS;
   const clips: Record<string, unknown>[] = plan.scenes.map((s, i) => {
     const last = i === plan.scenes.length - 1;
+    const length = round(s.duration + (last ? 0 : T));
+    const aiClip = s.clipAssetId ? clipById.get(s.clipAssetId)! : null;
     const clip: Record<string, unknown> = {
       id: `c_${s.id}`,
-      mediaId: mediaIdFor(s.assetId),
-      kind: "image",
+      mediaId: mediaIdFor(aiClip ? aiClip.id : s.assetId),
+      kind: aiClip ? "video" : "image",
       track: "V1",
       start: starts.get(s.id)!,
       in: 0,
-      duration: round(s.duration + (last ? 0 : T)),
+      // an AI clip can't play longer than it is
+      duration: aiClip?.duration_seconds ? round(Math.min(length, Number(aiClip.duration_seconds))) : length,
       name: `Scene ${i + 1}`,
-      cameraMove: s.move,
-      props: { fit: "cover" },
+      cameraMove: aiClip ? `ai:${s.camera?.move ?? s.move}` : s.camera ? `studio:${s.camera.move}` : s.move,
+      props: aiClip ? { fit: "cover", volume: 0 } : { fit: "cover" },
     };
-    if (s.move !== STILL) clip.keyframes = kenBurnsKeyframes(s.move, round(s.duration + (last ? 0 : T)), canvas);
+    if (!aiClip) {
+      const photo = photoById.get(s.assetId);
+      const cam = sceneCamera(s, length, canvas, photo);
+      if (cam) {
+        clip.keyframes = cam.keyframes;
+        if (cam.props) clip.props = { ...(clip.props as object), ...cam.props };
+      }
+    }
     if (i > 0 && T > 0) clip.transitionIn = { type: plan.transition, duration: T };
     if (last && T > 0) clip.transitionOut = { type: "fade", duration: Math.min(1, s.duration / 2) };
     return clip;

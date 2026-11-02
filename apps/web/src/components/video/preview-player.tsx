@@ -13,9 +13,10 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
  * is rendered by FableCut's own compositor.
  */
 export function PreviewPlayer({
-  plan, photoUrls, musicUrl, brandColor,
+  plan, photoUrls, musicUrl, brandColor, clipUrls,
 }: {
   plan: EditPlan; photoUrls: Record<string, string | null>; musicUrl: string | null; brandColor: string;
+  clipUrls?: Record<string, string | null>;
 }) {
   const total = totalDuration(plan);
   const [time, setTime] = useState(0);
@@ -59,7 +60,7 @@ export function PreviewPlayer({
 
   return (
     <div className="flex flex-col gap-3">
-      <StageView plan={plan} time={time} photoUrls={photoUrls} brandColor={brandColor} />
+      <StageView plan={plan} time={time} photoUrls={photoUrls} clipUrls={clipUrls} brandColor={brandColor} />
       {musicUrl ? <audio ref={audio} src={musicUrl} preload="auto" /> : null}
       <div className="flex items-center gap-3">
         <Button type="button" size="icon" onClick={() => (playing ? stop() : play())} aria-label={playing ? "Pause" : "Play"}>

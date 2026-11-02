@@ -30,9 +30,10 @@ export default async function EditVideoPage({ params }: { params: Promise<{ id: 
       .eq("project_id", id).order("created_at", { ascending: false }).limit(30),
   ]);
   const plan = currentPlan(project, listing, assets);
-  const [photoUrls, musicUrls] = await Promise.all([
+  const [photoUrls, musicUrls, clipUrls] = await Promise.all([
     signedUrlMap(BUCKETS.listingMedia, assets.photos.flatMap((p) => [p.storage_path, p.thumbnail_path ?? ""]), 4 * 3600),
     signedUrlMap(BUCKETS.projectMedia, assets.music.map((m) => m.storage_path), 4 * 3600),
+    signedUrlMap(BUCKETS.aiClips, assets.clips.map((c) => c.storage_path), 4 * 3600),
   ]);
 
   return (
@@ -57,6 +58,7 @@ export default async function EditVideoPage({ params }: { params: Promise<{ id: 
           initialRenders={(renders ?? []) as EditorRender[]}
           brandColor={ctx.brandKit?.primary_color ?? "#1D4ED8"}
           canDownload={ctx.profile.can_download}
+          clips={assets.clips.map((c) => ({ id: c.id, url: clipUrls[c.storage_path] ?? null }))}
         />
       )}
     </div>

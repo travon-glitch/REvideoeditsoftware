@@ -79,3 +79,13 @@ Create `THIRD_PARTY_NOTICES.md` (and an in-app "Open-source licences" page) cont
 - Vendored upstream code lives under `packages/fablecut-core/` (or `vendor/`) with an `UPSTREAM.md` recording repo, commit, and a list of local patches.
 - Never copy from `avoltaire/open-generative-ai`, `Open-Poe-AI`, or any source without an explicit licence file.
 - Never add `@ffmpeg/core*` (GPL) to a shipped bundle.
+
+## Stage 7 additions (Camera Studio)
+
+| Component | Licence | How it is used | Verdict |
+|---|---|---|---|
+| MiDaS v2.1 small depth model (`model-small.onnx`, Intel ISL — github.com/isl-org/MiDaS) | MIT | Downloaded by `npm run fetch-model -w @lvs/ai-motion` (SHA-256 pinned), run **only on the AI worker server**; not committed, not sent to browsers | Compatible. Keep the MIT notice with deployments. |
+| `onnxruntime-node` 1.20.1 (Microsoft) | MIT | Runs the depth model on the worker | Compatible. |
+| MuAPI request flow (`packages/ai-motion/src/providers/muapi.ts`) | MIT — adapted from Open-Generative-AI `src/lib/muapi.js` (upstream Anil-matcha/Open-Generative-AI, same code as the audited fork, MIT ≥ `1ff3667`) | Server-side provider adapter; only active when `MUAPI_API_KEY` is set | Compatible; attribution in the file header. **⚠ Legal review**: MuAPI's own terms of service and each video model's output licence must be accepted by the company before it is switched on. |
+| Cinema Studio presets (camera/lens look tables) | MIT (already vendored in `packages/camera-presets/upstream`, Stage 1) | Studied for the preset structure; our presets are original | Compatible. |
+| OpenCV sample images `home.jpg`, `building.jpg` (`apps/web/tests/fixtures/opencv-*.jpg`) | Apache-2.0 (OpenCV 4.x) | Test fixtures only (Stage 7 acceptance tests) | Compatible; not shipped in the app. |

@@ -10,6 +10,7 @@
  * generator — until an AI Director service is connected. It is labeled as such.
  */
 import { z } from "zod";
+import type { CameraSpec } from "@lvs/camera-presets";
 import {
   FIRST_SCENE, LAST_SCENE, MAX_SCENE_SECONDS, MAX_SCENES, MIN_SCENE_SECONDS, STILL,
   type Aspect, type EditPlan, type Scene, type TextOverlay, type Transition,
@@ -195,7 +196,8 @@ function texts(style: StyleId, l: EasyListing, scenes: Scene[], brand: EasyBrand
 /** Easy settings + listing + photos → a full EditPlan (the same model the Advanced editor uses). */
 export function buildEasyPlan(input: {
   listing: EasyListing;
-  photos: { id: string }[];
+  /** `camera`: the photo's own Camera Studio move, used instead of the style's move. */
+  photos: { id: string; camera?: CameraSpec | null }[];
   settings: EasySettings;
   brand: EasyBrand | null;
   /** Photo order chosen by the person (otherwise: main photo first, then the listing order). */
@@ -214,6 +216,7 @@ export function buildEasyPlan(input: {
     assetId: p.id,
     move: style.moves[i % style.moves.length] ?? STILL,
     duration: lengths[i]!,
+    ...(p.camera ? { camera: p.camera } : {}),
   }));
   return {
     version: 1,

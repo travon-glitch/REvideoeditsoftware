@@ -71,7 +71,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Promi
   }
 
   const { data: rows } = listing
-    ? await db.from("media_assets").select("id,storage_path,thumbnail_path,file_name").eq("listing_id", listing.id).eq("kind", "photo").order("sort_order")
+    ? await db.from("media_assets").select("id,storage_path,thumbnail_path,file_name,camera_spec").eq("listing_id", listing.id).eq("kind", "photo").order("sort_order")
     : { data: [] };
   const photos = orderForVideo(await signListingPhotos(rows ?? []), listing?.cover_asset_id ?? null);
   const base = listing ? toEasyListing(listing) : EMPTY_LISTING;

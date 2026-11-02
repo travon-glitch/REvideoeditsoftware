@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Download, Film, Pencil, Type, Wand2 } from "lucide-react";
-import { STILL_NAME, getMove } from "@lvs/camera-presets";
+import { STILL_NAME, getMove, getStudioMove } from "@lvs/camera-presets";
 import { RefreshWhile } from "@/components/video/refresh-while";
 import { ORIENTATION_LABELS } from "@/lib/video/easy";
 import type { Aspect } from "@/lib/video/plan";
@@ -16,6 +16,14 @@ import { PageHeader } from "@/components/page-header";
 import { VideoStatusBadge } from "@/components/status-badge";
 
 export const metadata = { title: "Video" };
+
+/** Plain name of a scene's camera: simple move, Camera Studio move ("studio:…"), or AI clip ("ai:…"). */
+function moveLabel(id: string | undefined): string {
+  if (!id) return STILL_NAME;
+  if (id.startsWith("studio:")) return getStudioMove(id.slice(7))?.name ?? "Custom camera";
+  if (id.startsWith("ai:")) return `AI clip · ${getStudioMove(id.slice(3))?.name ?? getMove(id.slice(3))?.name ?? "camera"}`;
+  return getMove(id)?.name ?? STILL_NAME;
+}
 
 interface DocClip { id: string; kind: string; name?: string; start: number; duration: number; cameraMove?: string; props?: { text?: string } }
 
@@ -110,7 +118,7 @@ export default async function VideoPage({
                 <li key={c.id} className="flex min-h-12 items-center gap-3 py-2 text-base">
                   <Film className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <span className="flex-1">Scene {i + 1}</span>
-                  <span className="text-muted-foreground">{getMove(c.cameraMove ?? "")?.name ?? STILL_NAME}</span>
+                  <span className="text-muted-foreground">{moveLabel(c.cameraMove)}</span>
                   <span className="w-16 text-right text-muted-foreground">{c.duration.toFixed(1)} s</span>
                 </li>
               ))}
