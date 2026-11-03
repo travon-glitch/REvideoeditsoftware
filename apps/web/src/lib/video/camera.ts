@@ -23,6 +23,9 @@ export const cameraSpecSchema = z.object({
   startFrame: view.nullable(),
   endFrame: view.nullable(),
   keyframes: z.array(view.extend({ t: num(0, 1), ease: easing.optional() })).min(2).max(24).nullable(),
+  manual: z.object({
+    horizontal: num(-10, 10), vertical: num(-10, 10), zoom: num(-10, 10), pan: num(-10, 10), tilt: num(-10, 10), rotate: num(-10, 10),
+  }).nullable().optional(),
 }).transform((s) => normalizeSpec(s as CameraSpec));
 
 export const LENS_OPTIONS = LENS_STYLES;

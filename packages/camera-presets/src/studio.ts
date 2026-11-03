@@ -197,6 +197,51 @@ export interface CameraSpec {
   endFrame: CameraView | null;
   /** Optional custom keyframes (override everything above except easing defaults, blur and lens zoom). */
   keyframes: CameraKey[] | null;
+  /** Optional hand-set movement (the "Move camera" sliders / frame). Overrides the move's path. */
+  manual?: ManualMove | null;
+}
+
+/* ── Hand-set movement ("Move camera") ─────────────────────────────────── */
+
+/**
+ * Six sliders, each −10…10 (0 = no change), describing how the camera travels from the start to the end
+ * of the clip. Positive values: right, up, closer, turn right, look up, roll clockwise.
+ *   Standard method: horizontal/vertical slide the frame, zoom scales it, rotate rolls it.
+ *     Pan and tilt are approximated by a slide (a flat photo can't really turn) — labelled as such.
+ *   AI depth method: real camera travel (tx, ty, tz) and real turns (yaw, pitch, roll).
+ */
+export interface ManualMove { horizontal: number; vertical: number; zoom: number; pan: number; tilt: number; rotate: number }
+export const MANUAL_AXES = ["horizontal", "vertical", "zoom", "pan", "tilt", "rotate"] as const;
+export type ManualAxis = (typeof MANUAL_AXES)[number];
+export const MANUAL_LABELS: Record<ManualAxis, { label: string; hint: string }> = {
+  horizontal: { label: "Horizontal", hint: "Slide the camera left (−) or right (+)" },
+  vertical: { label: "Vertical", hint: "Lower (−) or raise (+) the camera" },
+  zoom: { label: "Zoom", hint: "Pull back (−) or move closer (+)" },
+  pan: { label: "Pan", hint: "Turn left (−) or right (+)" },
+  tilt: { label: "Tilt", hint: "Look down (−) or up (+)" },
+  rotate: { label: "Rotate", hint: "Roll counter-clockwise (−) or clockwise (+)" },
+};
+export const ZERO_MANUAL: ManualMove = { horizontal: 0, vertical: 0, zoom: 0, pan: 0, tilt: 0, rotate: 0 };
+/** Per slider unit, in view terms (fraction of the frame / zoom factor / degrees). */
+export const MANUAL_SCALE = { slide: 0.025, turnSlide: 0.02, zoom: 0.06, rollDeg: 1.5, depthTravel: 0.012, depthTurnDeg: 1.5 } as const;
+
+export function isManualZero(m: ManualMove | null | undefined): boolean {
+  return !m || MANUAL_AXES.every((a) => m[a] === 0);
+}
+
+/** Start and end views of a hand-set movement (before the lens zoom and edge guard). */
+export function manualViews(m: ManualMove, baseZoom = 1): [CameraView, CameraView] {
+  const k = MANUAL_SCALE;
+  const zIn = 1 + Math.abs(m.zoom) * k.zoom;
+  const start: CameraView = { x: 0, y: 0, zoom: baseZoom * (m.zoom < 0 ? zIn : 1), rotation: 0 };
+  const end: CameraView = {
+    x: clamp(m.horizontal * k.slide + m.pan * k.turnSlide, -0.5, 0.5),
+    // + is up, which is towards the top of the photo (negative y)
+    y: clamp(-(m.vertical * k.slide + m.tilt * k.turnSlide), -0.5, 0.5),
+    zoom: baseZoom * (m.zoom > 0 ? zIn : 1),
+    rotation: m.rotate * k.rollDeg,
+  };
+  return [start, end];
 }
 
 export function defaultSpec(move: StudioMoveId = "push_in", patch: Partial<CameraSpec> = {}): CameraSpec {
@@ -256,6 +301,9 @@ export function normalizeSpec(s: CameraSpec): CameraSpec {
     startFrame: view(s.startFrame), endFrame: view(s.endFrame),
     keyframes: s.keyframes
       ? s.keyframes.slice(0, 24).map((k) => ({ ...view(k)!, t: clamp(k.t, 0, 1), ...(k.ease ? { ease: k.ease } : {}) })).sort((a, b) => a.t - b.t)
+      : null,
+    manual: s.manual
+      ? Object.fromEntries(MANUAL_AXES.map((a) => [a, Math.round(clamp(Number(s.manual![a]) || 0, -10, 10) * 10) / 10])) as unknown as ManualMove
       : null,
   };
 }
@@ -323,9 +371,11 @@ export function cameraPath(spec: CameraSpec, duration: number): CameraKey[] {
       ...(i > 0 ? { ease: k.ease ?? s.easing } : {}),
     }));
   }
-  const [from, to] = s.startFrame && s.endFrame
-    ? [{ ...s.startFrame, zoom: s.startFrame.zoom * lensZoom }, { ...s.endFrame, zoom: s.endFrame.zoom * lensZoom }]
-    : moveViews(s);
+  const [from, to] = s.manual && !isManualZero(s.manual)
+    ? manualViews(s.manual, s.zoom * lensZoom)
+    : s.startFrame && s.endFrame
+      ? [{ ...s.startFrame, zoom: s.startFrame.zoom * lensZoom }, { ...s.endFrame, zoom: s.endFrame.zoom * lensZoom }]
+      : moveViews(s);
   const arrive = r4(duration / Math.max(1, s.speed));
   const keys: CameraKey[] = [{ t: 0, ...from }, { t: arrive, ...to, ease: s.easing }];
   if (arrive < duration - 0.01) keys.push({ t: r4(duration), ...to, ease: "linear" });
@@ -436,6 +486,10 @@ export function cameraKeyframes(spec: CameraSpec, duration: number, canvas: Canv
 
 /** Plain-English summary, e.g. "Push In · 5 s · gentle". */
 export function describeSpec(spec: CameraSpec, duration?: number): string {
+  if (spec.manual && !isManualZero(spec.manual)) {
+    const parts = MANUAL_AXES.filter((a) => spec.manual![a] !== 0).map((a) => `${MANUAL_LABELS[a].label} ${spec.manual![a] > 0 ? "+" : ""}${spec.manual![a]}`);
+    return ["Custom movement", duration ? `${duration} s` : null, parts.join(", ")].filter(Boolean).join(" · ");
+  }
   const m = getStudioMove(spec.move);
   const feel = spec.strength < 0.4 ? "gentle" : spec.strength < 0.75 ? "normal" : "dramatic";
   return [m?.name ?? spec.move, duration ? `${duration} s` : null, feel, spec.lens ? `${spec.lens}mm-style` : null,
@@ -460,6 +514,17 @@ export function depthPose(spec: CameraSpec, u: number): DepthPose {
   const rad = (s.direction * Math.PI) / 180;
   const lat = (d: number) => ({ tx: d * Math.cos(rad), ty: d * Math.sin(rad) });
   const pose: DepthPose = { tx: 0, ty: 0, tz: 0, yaw: 0, pitch: 0, roll: s.rotation * p, fovDeg: lens.fovDeg, pivot: s.target };
+  if (s.manual && !isManualZero(s.manual)) {
+    const m = s.manual, k = MANUAL_SCALE;
+    // real travel and real turns through the depth map
+    pose.tx = m.horizontal * k.depthTravel * p;
+    pose.ty = -m.vertical * k.depthTravel * p;
+    pose.tz = m.zoom * k.depthTravel * 1.5 * p;
+    pose.yaw = m.pan * k.depthTurnDeg * p;
+    pose.pitch = m.tilt * k.depthTurnDeg * p;
+    pose.roll = m.rotate * k.rollDeg * p;
+    return pose;
+  }
   // Small, natural amounts (a few % of the scene depth): bigger moves expose what a single photo can't show.
   switch (s.move) {
     case "push_in": case "dolly_in": pose.tz = 0.8 * a * p; break;

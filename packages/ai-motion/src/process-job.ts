@@ -9,7 +9,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildMotionPrompt, getStudioMove, normalizeSpec, type CameraSpec, type StudioMoveId } from "@lvs/camera-presets";
+import { buildMotionPrompt, getStudioMove, isManualZero, normalizeSpec, type CameraSpec, type StudioMoveId } from "@lvs/camera-presets";
 import { makeDepthClip } from "./depth-clip.ts";
 import { decodeCover, normalizeVideo, probeVideo } from "./media.ts";
 import { reviewClip, type AccuracyReview } from "./accuracy.ts";
@@ -99,7 +99,7 @@ export async function processGenerationJob(job: GenerationJob, deps: GenerationD
         onProgress: (p) => void deps.progress?.(job.id, p * 0.9),
       });
       review = r.review;
-      label = `${move.name} · AI depth`;
+      label = `${input.spec.manual && !isManualZero(input.spec.manual) ? "Custom movement" : move.name} · AI depth`;
     } else {
       const provider = deps.providers[job.provider];
       if (!provider) throw new Error("This AI provider isn't set up on the server. Ask an administrator.");

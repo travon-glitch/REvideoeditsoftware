@@ -14,7 +14,7 @@ import type { SessionContext } from "@/lib/auth/session";
 import type { Json } from "@/lib/database.types";
 import { BUCKETS } from "@/lib/storage";
 import { signedUrlMap } from "@/lib/storage-server";
-import { describeSpec, getStudioMove, type CameraSpec } from "@lvs/camera-presets";
+import { describeSpec, getStudioMove, isManualZero, type CameraSpec } from "@lvs/camera-presets";
 import { composeDocument, type Aspect, type EditPlan } from "@/lib/video/plan";
 import { validateFableCutDocument } from "@/lib/video/validate-document";
 import { currentPlan, loadProjectAssets } from "@/lib/video/editor-data";
@@ -90,7 +90,8 @@ export async function startAiClip(db: Db, ctx: SessionContext, input: {
   if (!ctx.profile.can_use_ai) return { ok: false, status: 403, message: "AI isn't switched on for your account. Ask an administrator." };
   const move = getStudioMove(input.camera.move);
   if (!move) return { ok: false, status: 400, message: "Unknown camera move." };
-  if (input.method === "depth" && !move.ai.includes("depth")) return { ok: false, status: 400, message: `${move.name} doesn't need AI depth — use the Standard method.` };
+  const manual = !isManualZero(input.camera.manual);
+  if (input.method === "depth" && !manual && !move.ai.includes("depth")) return { ok: false, status: 400, message: `${move.name} doesn't need AI depth — use the Standard method.` };
   let provider = LOCAL_DEPTH, model = "midas-v21-small";
   if (input.method === "generative") {
     const g = generativeProvider();

@@ -81,7 +81,7 @@ export function AdvancedPanel({
               <div role="radiogroup" aria-label={g} className="grid gap-2 sm:grid-cols-2">
                 {STUDIO_MOVES.filter((m) => m.group === g).map((m) => (
                   <button key={m.id} type="button" role="radio" aria-checked={spec.move === m.id}
-                    onClick={() => setSpec((s) => ({ ...s, move: m.id, startFrame: null, endFrame: null, keyframes: null }))}
+                    onClick={() => setSpec((s) => ({ ...s, move: m.id, startFrame: null, endFrame: null, keyframes: null, manual: null }))}
                     className={cn("flex flex-col items-start gap-1 rounded-lg border-2 p-2.5 text-left", spec.move === m.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40")}>
                     <span className="text-sm font-semibold">{m.name}</span>
                     <QualityBadge move={m} />

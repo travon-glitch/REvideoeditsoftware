@@ -99,3 +99,24 @@ company (photos leave your servers and it costs money).
 | Web unit + DB | incl. `tests/db/camera-studio.test.ts`: photo camera access, AI job rules, only the worker creates AI clips, reviews can't be erased, audit, storage privacy |
 | **Stage 7 acceptance** (`npm run test:render -w @lvs/web`, `camera-studio.acceptance.test.ts`) | Exterior photo → **Push In, Pull Out, Truck Right, Tilt Up**: each previewed (preview frames match the MP4, SSIM > 0.85 at 3 moments), exported through the real FableCut worker to **1920×1080 H.264, 5.0 s**, decodes cleanly, moves the right way; Push In **plays in Chrome**. **Real AI motion: AI depth Orbit Left** (MiDaS) → 1080p clip, stretched area < 5 %; that AI clip **used in a video scene renders through FableCut** (its frames appear in the video). Stage 5/6 render tests still pass (15/15). |
 | Generative provider (real call) | **Skipped** — no provider key is configured here, and this environment can't reach AI provider hosts. Runs automatically with `MUAPI_API_KEY` set. |
+
+## Update — "Move camera" (drag the frame + six sliders)
+A third Camera Studio tab, **Move camera** (`/camera-studio?mode=move`):
+- The **whole photo** is shown with a white **end frame**. Drag the frame to where the clip should end, or pull a
+  handle to zoom (smaller frame = closer; past the full photo = pull back). Arrow keys nudge it, and **+ / −** zoom.
+- **Faint frames** show the camera's path from start to end. They are drawn from the same keyframes as the
+  preview and the MP4, including the automatic edge zoom, so what you see is what renders.
+- **Six sliders**, −10 to 10, with the fill growing from the centre (double-click a slider to reset it):
+  **Horizontal, Vertical, Zoom, Pan, Tilt, Rotate**.
+- **Apply movement** saves it on the photo or the scene. **Reset** clears it. The live preview plays it straight away.
+- **Standard method:** horizontal, vertical, zoom and rotate are exact. A flat photo can't really turn, so pan and
+  tilt are shown as a slide, and the page says so.
+- **AI depth method:** real camera travel and real pan/tilt/roll turns through the depth map.
+- Stored as `camera.manual` on the existing camera spec (validated −10…10). It overrides the chosen move's path;
+  choosing a move in Advanced clears it.
+- **Tests:**
+  - unit tests (slider directions, edge guard, depth poses, validation);
+  - a real Standard render where the preview matches the MP4 and the picture moves the way the sliders say;
+  - a real AI depth render with Pan +6 where the camera turns.
+
+Screenshots: `docs/screenshots/camera-move-panel.png` and `camera-move-panel-rotate-pan.png`.

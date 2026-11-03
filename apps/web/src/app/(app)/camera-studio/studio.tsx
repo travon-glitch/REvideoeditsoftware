@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   AI_METHOD_LABELS, EASY_CAMERAS, EASY_DURATIONS, INTENSITIES, LENS_FEEL, STANDARD_QUALITY_LABELS, cameraKeyframes, describeSpec,
-  easySpec, getStudioMove, transformAt, type CameraSpec, type CameraView, type EasyCameraId, type Intensity,
+  easySpec, getStudioMove, isManualZero, transformAt, type CameraSpec, type CameraView, type EasyCameraId, type Intensity,
 } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -24,6 +24,7 @@ import { startEasyListing } from "../create/actions";
 import { CameraPreview, MiniCameraPreview } from "./camera-preview";
 import { AdvancedPanel, QualityBadge } from "./advanced-panel";
 import { ClipsPanel, type Activity } from "./clips-panel";
+import { MovementPanel } from "./movement-panel";
 
 export interface StudioPhoto { id: string; url: string | null; thumb: string | null; file_name: string; width: number | null; height: number | null; camera: CameraSpec | null }
 export interface StudioProps {
@@ -33,7 +34,7 @@ export interface StudioProps {
   canEdit: boolean;
   photos: StudioPhoto[];
   initialPhotoId: string | null;
-  initialMode: "easy" | "advanced";
+  initialMode: "easy" | "move" | "advanced";
   scene: { projectId: string; sceneId: string; label: string; photoId: string; camera: CameraSpec | null; aspect: Aspect; duration: number } | null;
   canUseAi: boolean;
   generative: { id: string; model: string } | null;
@@ -170,9 +171,12 @@ export function CameraStudio(p: StudioProps) {
   const photoUrls = useMemo(() => Object.fromEntries(p.photos.map((x) => [x.id, x.url])), [p.photos]);
   const previewPhoto = photo ? { url: photo.url, width: photo.width, height: photo.height } : null;
   const thumbPhoto = photo ? { url: photo.thumb ?? photo.url, width: photo.width, height: photo.height } : null;
-  const standInNote = move.requiresAI || move.standard === "stand-in"
+  const standInNote = isManualZero(shot.spec.manual) === false
+    ? (shot.spec.manual!.pan || shot.spec.manual!.tilt ? "Preview: pan and tilt shown as a slide (flat photo). The AI depth version turns the camera for real." : null)
+    : move.requiresAI || move.standard === "stand-in"
     ? `Preview: 2D stand-in. A real ${move.name.toLowerCase()} needs ${move.ai.map((a) => AI_METHOD_LABELS[a]).join(" or ")}.` : null;
-  const canDepth = move.ai.includes("depth");
+  const manual = !isManualZero(shot.spec.manual);
+  const canDepth = manual || move.ai.includes("depth");
 
   return (
     <div className="flex flex-col gap-6">
@@ -184,10 +188,10 @@ export function CameraStudio(p: StudioProps) {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div role="radiogroup" aria-label="Camera mode" className="flex rounded-lg border p-1">
-            {(["easy", "advanced"] as const).map((m) => (
+            {(["easy", "move", "advanced"] as const).map((m) => (
               <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}
                 className={cn("min-h-10 rounded-md px-4 text-sm font-semibold", mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-                {m === "easy" ? "Easy camera" : "Advanced camera"}
+                {m === "easy" ? "Easy camera" : m === "move" ? "Move camera" : "Advanced camera"}
               </button>
             ))}
           </div>
@@ -352,6 +356,10 @@ export function CameraStudio(p: StudioProps) {
                     <Check aria-hidden="true" />Apply
                   </Button>
                 </div>
+              ) : mode === "move" ? (
+                <MovementPanel spec={shot.spec} setSpec={setSpec} photoUrl={photo.url ?? photo.thumb} photoSize={photo.width && photo.height ? { width: photo.width, height: photo.height } : null} aspect={shot.aspect}
+                  busy={busy === "apply"} canApply={p.canEdit && !busy} onApply={() => void apply()}
+                  applyLabel={p.scene ? `Apply movement to ${p.scene.label}` : "Apply movement"} />
               ) : (
                 <AdvancedPanel spec={shot.spec} setSpec={setSpec} duration={shot.duration}
                   setDuration={(d) => history.set((h) => ({ ...h, duration: d }), "duration")} currentView={currentView} photoUrl={photo.thumb ?? photo.url} />

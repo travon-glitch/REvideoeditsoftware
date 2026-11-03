@@ -105,7 +105,7 @@ export class DepthScene {
     // camera orientation and position
     let R: M3;
     let C: V3;
-    if (poseTurnsAroundPivot(this.spec.move)) {
+    if (!this.spec.manual && poseTurnsAroundPivot(this.spec.move)) {
       const pv: V3 = [pose.pivot.x * W / this.f0, pose.pivot.y * H / this.f0, 1];
       const th = -deg(pose.yaw);
       const Ry = rotY(th);

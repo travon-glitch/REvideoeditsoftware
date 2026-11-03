@@ -134,6 +134,28 @@ describe.skipIf(!hasTools)("Stage 7 acceptance: camera moves on an exterior phot
     }, 600_000);
   }
 
+  it("Move camera (Horizontal +6, Vertical +4): preview matches the exported MP4, which moves the way the sliders say", async () => {
+    mkdirSync(OUT, { recursive: true });
+    const spec = defaultSpec("push_in", { manual: { horizontal: 6, vertical: 4, zoom: 0, pan: 0, tilt: 0, rotate: 0 } });
+    const plan = clipPlan(spec);
+    expect(plan.scenes[0]!.camera?.manual).toMatchObject({ horizontal: 6, vertical: 4 });
+    const doc = composeDocument({ plan, title: "Camera clip manual", photos: photoInfo, music: [], brand: null });
+    expect(validateFableCutDocument(doc)).toEqual({ ok: true });
+    const stored = new Map<string, Uint8Array>();
+    const r = await processJob({ id: randomUUID(), organization_id: org, project_id: project, aspect: "16:9", document: doc }, deps(stored));
+    expect(r.error ?? "").toBe("");
+    const file = join(OUT, "manual-move.mp4");
+    writeFileSync(file, [...stored.values()][0]!);
+    expect([probe(file).width, probe(file).height]).toEqual([W, H]);
+    expect(spawnSync("ffmpeg", ["-v", "error", "-i", file, "-f", "null", "-"], { encoding: "utf8" }).stderr.trim()).toBe("");
+    const src = source();
+    for (const t of [0.2, 2.5, 4.7]) expect(ssim(gray(previewFrame(plan, t, src)), gray(frameAt(file, t, 480, 270))), `at ${t}s`).toBeGreaterThan(0.85);
+    // camera right and up → the picture moves left and down
+    const d = shift(frameAt(file, 0.1, 192, 108), frameAt(file, DURATION - 0.1, 192, 108));
+    expect(d.dx).toBeLessThan(-2);
+    expect(d.dy).toBeGreaterThan(1);
+  }, 600_000);
+
   it("the exported Push In clip plays in Chrome", async () => {
     type Page = { goto(u: string): Promise<unknown>; evaluate<T>(fn: () => Promise<T>): Promise<T> };
     const { chromium } = createRequire(import.meta.url)("playwright") as { chromium: { launch(o: object): Promise<{ newPage(): Promise<Page>; close(): Promise<void> }> } };
@@ -185,6 +207,18 @@ describe.skipIf(!hasTools || !depthModelAvailable())("Stage 7 acceptance: real A
     const top = shift(a.subarray(0, 192 * 54 * 3), b.subarray(0, 192 * 54 * 3), 192, 54);
     const whole = shift(a, b);
     expect(Math.abs(whole.dx) + Math.abs(top.dx)).toBeGreaterThan(0);
+    expect(spawnSync("ffmpeg", ["-v", "error", "-i", out, "-f", "null", "-"], { encoding: "utf8" }).stderr.trim()).toBe("");
+  }, 300_000);
+
+  it("AI depth with Move camera (Pan +6): the camera really turns", async () => {
+    mkdirSync(OUT, { recursive: true });
+    const out = join(OUT, "ai-depth-manual-pan.mp4");
+    const spec = defaultSpec("push_in", { depth: 0.6, manual: { horizontal: 0, vertical: 0, zoom: 0, pan: 6, tilt: 0, rotate: 0 } });
+    const r = await makeDepthClip({ photo: PHOTO, spec, duration: 3, width: W, height: H, out });
+    expect([r.width, r.height]).toEqual([W, H]);
+    expect(r.review.stretchedShare).toBeLessThan(0.05);
+    const d = shift(frameAt(out, 0.1, 192, 108), frameAt(out, 2.9, 192, 108));
+    expect(d.dx).toBeLessThan(-1); // turning right → the picture moves left
     expect(spawnSync("ffmpeg", ["-v", "error", "-i", out, "-f", "null", "-"], { encoding: "utf8" }).stderr.trim()).toBe("");
   }, 300_000);
 

@@ -59,7 +59,7 @@ export default async function CameraStudioPage({ searchParams }: { searchParams:
       canEdit={accessRes.data === "edit" || !listingId}
       photos={photos}
       initialPhotoId={initialPhotoId}
-      initialMode={ctx.profile.ui_mode === "advanced" ? "advanced" : "easy"}
+      initialMode={q.mode === "move" || q.mode === "easy" || q.mode === "advanced" ? q.mode : ctx.profile.ui_mode === "advanced" ? "advanced" : "easy"}
       scene={scene}
       canUseAi={ctx.profile.can_use_ai}
       generative={generativeProvider()}

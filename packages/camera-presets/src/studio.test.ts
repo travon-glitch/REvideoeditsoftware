@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CINEMATIC_PRESETS, EASY_CAMERAS, LENS_STYLES, STUDIO_MOVES, STUDIO_MOVE_IDS, cameraKeyframes, coversFrame, defaultSpec,
-  depthPose, easySpec, evalChannel, moveViews, presetSpec, transformAt, type CameraSpec,
+  ZERO_MANUAL, cameraPath, depthPose, describeSpec, easySpec, evalChannel, manualViews, moveViews, normalizeSpec, presetSpec, transformAt, type CameraSpec, type ManualMove,
 } from "./index";
 
 const HD = { width: 1920, height: 1080 };
@@ -113,5 +113,52 @@ describe("studio moves", () => {
     expect(depthPose(defaultSpec("dolly_in"), 1).tz).toBeGreaterThan(0);
     expect(depthPose(defaultSpec("dolly_in"), 0).tz).toBe(0);
     expect(depthPose(defaultSpec("zoom"), 1).fovDeg).toBeLessThan(depthPose(defaultSpec("zoom"), 0).fovDeg);
+  });
+});
+
+describe("Move camera (hand-set movement)", () => {
+  const canvas = { width: 1920, height: 1080 };
+  const photo = { width: 4000, height: 3000 };
+  const manual = (m: Partial<ManualMove>): CameraSpec => defaultSpec("push_in", { manual: { ...ZERO_MANUAL, ...m } });
+
+  it("each slider moves the end frame the way it's labelled", () => {
+    expect(manualViews({ ...ZERO_MANUAL, horizontal: 4 })[1].x).toBeCloseTo(0.1);
+    expect(manualViews({ ...ZERO_MANUAL, vertical: 4 })[1].y).toBeCloseTo(-0.1); // up = towards the top
+    expect(manualViews({ ...ZERO_MANUAL, zoom: 5 })[1].zoom).toBeCloseTo(1.3);
+    const out = manualViews({ ...ZERO_MANUAL, zoom: -5 });
+    expect(out[0].zoom).toBeCloseTo(1.3); // pull back = start closer, end on the full photo
+    expect(out[1].zoom).toBe(1);
+    expect(manualViews({ ...ZERO_MANUAL, rotate: 4 })[1].rotation).toBeCloseTo(6);
+  });
+
+  it("drives the Standard keyframes and never shows past the photo's edge", () => {
+    const spec = manual({ horizontal: 6, vertical: -3, zoom: 4, rotate: 3 });
+    const r = cameraKeyframes(spec, 5, canvas, photo);
+    for (let i = 0; i <= 50; i++) expect(coversFrame(transformAt(r.keyframes, (5 * i) / 50), canvas, photo)).toBe(true);
+    const a = transformAt(r.keyframes, 0), b = transformAt(r.keyframes, 5);
+    expect(b.x).toBeLessThan(a.x); // view moves right → photo slides left
+    expect(b.scale).toBeGreaterThan(a.scale);
+    expect(b.rotation).toBeCloseTo(4.5);
+  });
+
+  it("all-zero sliders fall back to the chosen move", () => {
+    expect(cameraPath(manual({}), 5)).toEqual(cameraPath(defaultSpec("push_in"), 5));
+  });
+
+  it("gives the AI depth method real travel and turns", () => {
+    const end = depthPose(manual({ horizontal: 5, vertical: 5, zoom: 5, pan: 4, tilt: -4, rotate: 2 }), 1);
+    expect(end.tx).toBeGreaterThan(0);
+    expect(end.ty).toBeLessThan(0);
+    expect(end.tz).toBeGreaterThan(0);
+    expect(end.yaw).toBeCloseTo(6);
+    expect(end.pitch).toBeCloseTo(-6);
+    expect(end.roll).toBeCloseTo(3);
+    expect(depthPose(manual({ pan: 4 }), 0).yaw).toBe(0);
+  });
+
+  it("normalizes bad input and describes the move", () => {
+    const n = normalizeSpec(manual({ horizontal: 99, pan: -42.345 }));
+    expect(n.manual).toMatchObject({ horizontal: 10, pan: -10 });
+    expect(describeSpec(manual({ horizontal: 4.1 }), 5)).toBe("Custom movement · 5 s · Horizontal +4.1");
   });
 });
