@@ -8,7 +8,8 @@
     "packages/camera-presets",
     "packages/fablecut-core",
     "packages/render-worker",
-    "packages/ai-motion"
+    "packages/ai-motion",
+    "packages/voice"
   ],
   "scripts": {
     "dev": "npm run dev -w @lvs/web",

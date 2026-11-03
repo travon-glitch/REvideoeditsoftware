@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Check, Download, Film, LoaderCircle, Music, RefreshCw, Sparkles, Star, Type, Upload } from "lucide-react";
 import { STILL_NAME, getMove } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
@@ -110,8 +110,9 @@ export function CustomizeStep({
   musicBusy: boolean; musicMsg: string | null;
   onDetail: (field: keyof WizardDetails, value: string) => void;
   onSettings: (patch: Partial<EasySettings>) => void;
-  onUploadMusic: (file: File | undefined) => void;
+  onUploadMusic: (file: File | undefined, authorized: boolean) => void;
 }) {
+  const [authorized, setAuthorized] = useState(false);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5" aria-labelledby="sec-home">
@@ -157,10 +158,11 @@ export function CustomizeStep({
             <Choice key={m.id} selected={settings.musicAssetId === m.id} onClick={() => onSettings({ musicAssetId: m.id })} title={m.file_name} hint="Fades out at the end" />
           ))}
         </div>
-        <label className={cn("flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 text-base font-semibold hover:border-primary/60", musicBusy && "pointer-events-none opacity-60")}>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 size-5" checked={authorized} onChange={(e) => setAuthorized(e.target.checked)} />My company is authorised to use this music in advertising.</label>
+        <label className={cn("flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 text-base font-semibold hover:border-primary/60", (musicBusy || !authorized) && "pointer-events-none opacity-60")}>
           {musicBusy ? <LoaderCircle className="size-5 animate-spin" aria-hidden="true" /> : <Upload className="size-5" aria-hidden="true" />}
           {musicBusy ? "Adding your music…" : "Add your own music (MP3, M4A or WAV)"}
-          <input type="file" accept={MUSIC_MIME_TYPES.join(",")} className="sr-only" disabled={musicBusy} onChange={(e) => { onUploadMusic(e.target.files?.[0]); e.target.value = ""; }} />
+          <input type="file" accept={MUSIC_MIME_TYPES.join(",")} className="sr-only" disabled={musicBusy || !authorized} onChange={(e) => { onUploadMusic(e.target.files?.[0], authorized); e.target.value = ""; }} />
         </label>
         {musicMsg ? <p role="status" className="text-base">{musicMsg}</p> : null}
         <p className="flex items-start gap-2 text-sm text-muted-foreground"><Music className="mt-0.5 size-4 shrink-0" aria-hidden="true" />Only use music your company may use in advertising.</p>

@@ -17,7 +17,7 @@ import type { GenerativeProvider } from "./providers/types.ts";
 import { FIDELITY } from "./prompt.ts";
 
 export const LOCAL_DEPTH_PROVIDER = "local-depth";
-export const ASPECT_SIZE = { "16:9": [1920, 1080], "9:16": [1080, 1920], "1:1": [1080, 1080] } as const;
+export const ASPECT_SIZE = { "16:9": [1920, 1080], "9:16": [1080, 1920], "1:1": [1080, 1080], "4:5": [1080, 1350] } as const;
 type Aspect = keyof typeof ASPECT_SIZE;
 
 export interface GenerationJob {

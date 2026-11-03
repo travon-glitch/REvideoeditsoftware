@@ -83,6 +83,7 @@ export function currentPlan(project: VideoProjectRow, listing: ListingRow | null
           ? { ...parsed.data.music, assetId: null } : parsed.data.music,
         logoAssetId: parsed.data.logoAssetId && (assets.logos ?? []).some((l) => l.id === parsed.data.logoAssetId) ? parsed.data.logoAssetId : undefined,
         ...(parsed.data.branding ? { branding: availableBranding(parsed.data.branding, assets) } : {}),
+        ...(parsed.data.voiceover && !musicIds.has(parsed.data.voiceover.assetId) ? { voiceover: undefined } : {}),
       };
     }
   }
@@ -109,6 +110,7 @@ export function planUsesOnly(plan: EditPlan, assets: EditorAssets): string | nul
   const badClip = plan.scenes.find((s) => s.clipAssetId && !assets.clips.some((c) => c.id === s.clipAssetId && c.source_asset_id === s.assetId));
   if (badClip) return "A scene uses an AI clip that wasn't made from its photo.";
   if (plan.music.assetId && !assets.music.some((m) => m.id === plan.music.assetId)) return "The chosen music isn't part of this project.";
+  if (plan.voiceover && !assets.music.some((m) => m.id === plan.voiceover!.assetId)) return "The narration audio isn't part of this video.";
   if (plan.logoAssetId && !(assets.logos ?? []).some((l) => l.id === plan.logoAssetId)) return "The brand logo isn't available.";
   const b = plan.branding;
   const brandIds = b ? [b.logoAssetId, b.brokerageLogoAssetId, b.agent?.headshotAssetId].filter(Boolean) : [];

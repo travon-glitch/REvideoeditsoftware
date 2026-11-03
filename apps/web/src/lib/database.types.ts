@@ -110,7 +110,7 @@ export type GenerationJobRow = {
 };
 export type VideoBatchRow = {
   id: string; organization_id: string; listing_id: string | null; created_by: string | null; size: number; analysis: Json; created_at: string;
-  aspect: "16:9" | "9:16" | "1:1"; planner: "rules" | "ai_director";
+  aspect: "16:9" | "9:16" | "1:1" | "4:5"; planner: "rules" | "ai_director";
 };
 export type MusicTrackRow = {
   id: string; organization_id: string; asset_id: string; title: string; artist: string | null; mood: string; bpm: number | null;
@@ -125,7 +125,7 @@ export type RenderJobRow = {
   id: string; organization_id: string; project_id: string; revision: number; preset: string; status: JobStatus;
   progress: number; output_asset_id: string | null; error_message: string | null; requested_by: string | null;
   created_at: string; started_at: string | null; finished_at: string | null;
-  aspect: "16:9" | "9:16" | "1:1"; document: Json; attempts: number; worker_id: string | null; output_path: string | null;
+  aspect: "16:9" | "9:16" | "1:1" | "4:5"; document: Json; attempts: number; worker_id: string | null; output_path: string | null;
   duration_seconds: number | null; width: number | null; height: number | null; size_bytes: number | null;
   label: string | null;
 };
@@ -201,6 +201,7 @@ export type Database = {
       start_video_batch: { Args: { p_listing_id: string; p_size: number; p_analysis?: Json; p_aspect?: string; p_planner?: string }; Returns: VideoBatchRow };
       my_generation_allowance: { Args: Record<PropertyKey, never>; Returns: Json };
       my_brand_rules: { Args: Record<PropertyKey, never>; Returns: Json };
+      record_audio_authorization: { Args: { p_asset: string; p_purpose: string }; Returns: undefined };
       admin_set_brand_rules: { Args: { p_require_logo: boolean; p_require_disclosure: boolean; p_require_agent_card: boolean; p_lock_fonts: boolean; p_lock_colors: boolean }; Returns: undefined };
       admin_set_template_default: { Args: { p_template: string; p_statuses: ListingStatus[] }; Returns: undefined };
       admin_set_batch_permission: { Args: { p_user_id: string; p_allowed: boolean }; Returns: ProfileRow };

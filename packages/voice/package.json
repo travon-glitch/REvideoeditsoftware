@@ -1,0 +1,16 @@
+{
+  "name": "@lvs/voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "fetch-models": "node scripts/fetch-models.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "sherpa-onnx-node": "2.0.1"
+  }
+}

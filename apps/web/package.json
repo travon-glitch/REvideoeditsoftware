@@ -17,6 +17,7 @@
     "@lvs/camera-presets": "*",
     "@lvs/fablecut-core": "*",
     "@lvs/render-worker": "*",
+    "@lvs/voice": "*",
     "@radix-ui/react-label": "2.1.17",
     "@radix-ui/react-slot": "1.5.0",
     "@supabase/ssr": "0.12.7",

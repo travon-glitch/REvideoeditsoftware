@@ -18,7 +18,7 @@ export const ROOM_LABELS: Record<RoomType, string> = {
 
 export const DIRECTOR_STYLES = ["luxury", "modern", "cinematic", "social", "open_house", "listing_tour"] as const;
 export type DirectorStyle = (typeof DIRECTOR_STYLES)[number];
-export const DIRECTOR_STYLE_INFO: Record<DirectorStyle, { label: string; aspect: "16:9" | "9:16" | "1:1"; seconds: [number, number]; brief: string }> = {
+export const DIRECTOR_STYLE_INFO: Record<DirectorStyle, { label: string; aspect: "16:9" | "9:16" | "1:1" | "4:5"; seconds: [number, number]; brief: string }> = {
   luxury: { label: "Luxury", aspect: "16:9", seconds: [35, 50], brief: "Slow, elegant and understated. Few long shots, gentle camera moves, soft fades, refined minimal text." },
   modern: { label: "Modern", aspect: "16:9", seconds: [25, 35], brief: "Clean and crisp. Medium pacing, slides and wipes, bold short text." },
   cinematic: { label: "Cinematic", aspect: "16:9", seconds: [40, 60], brief: "Film-like storytelling: establish the exterior, flow room to room, slow moves with motion blur, emotional hook." },

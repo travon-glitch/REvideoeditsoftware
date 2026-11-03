@@ -4,7 +4,7 @@ export interface GenerativeRequest {
   fileName: string;
   prompt: string;
   durationSeconds: number;
-  aspect: "16:9" | "9:16" | "1:1";
+  aspect: "16:9" | "9:16" | "1:1" | "4:5";
   onProviderJob?: (id: string) => Promise<void> | void;
 }
 

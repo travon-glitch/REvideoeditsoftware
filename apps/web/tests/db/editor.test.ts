@@ -62,7 +62,7 @@ describe("render queue", () => {
        values ($1, $2, 1, 'x', '16:9', $3, auth.uid(), 'succeeded', 'x')`, [org, projectA, JSON.stringify(doc)])), /row-level security/);
     await rejects(alice((tx) => tx.query(
       `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
-       values ($1, $2, 1, 'x', '4:5', $3, auth.uid())`, [org, projectA, JSON.stringify(doc)])), /check constraint/);
+       values ($1, $2, 1, 'x', '5:4', $3, auth.uid())`, [org, projectA, JSON.stringify(doc)])), /check constraint/);
   });
 
   it("only the worker (service role) can claim jobs, oldest first, one at a time", async () => {

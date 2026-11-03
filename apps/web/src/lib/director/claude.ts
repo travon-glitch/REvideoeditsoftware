@@ -110,7 +110,7 @@ Prefer gentle, standard moves (push_in, pull_out, truck_left, truck_right, pan_l
 export function storyboardRequest(model: DirectorModel, input: {
   style: DirectorStyle; facts: VerifiedFacts; analysis: PhotoAnalysis; photoCount: number;
   /** Batch videos: their own title, brief, shape and length. */
-  override?: { label: string; brief: string; aspect: "16:9" | "9:16" | "1:1"; seconds: [number, number] };
+  override?: { label: string; brief: string; aspect: "16:9" | "9:16" | "1:1" | "4:5"; seconds: [number, number] };
 }): StreamParams {
   const s = input.override ?? DIRECTOR_STYLE_INFO[input.style];
   const moves = STUDIO_MOVES.map((m) => `${m.id}${m.requiresAI ? " (needs AI video — avoid)" : ""}`).join(", ");

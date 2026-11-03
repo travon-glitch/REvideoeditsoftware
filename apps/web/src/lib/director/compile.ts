@@ -49,7 +49,7 @@ export function compileStoryboard(input: {
   facts: VerifiedFacts;
   style: DirectorStyle;
   /** Shape override (batch videos). */
-  aspect?: "16:9" | "9:16" | "1:1";
+  aspect?: "16:9" | "9:16" | "1:1" | "4:5";
 }): CompiledStoryboard {
   const { storyboard: sb, photos, facts, style } = input;
   const warnings: CompileWarning[] = [];

@@ -9,12 +9,18 @@ import { currentPlan, loadProjectAssets } from "@/lib/video/editor-data";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { VideoEditor, type EditorRender } from "./video-editor";
+import { toEasyListing } from "@/lib/video/project-store";
+import { VOICE_LIST } from "@/lib/video/voice-store";
+import { voiceModelsAvailable } from "@lvs/voice";
+import { getStudioMove } from "@lvs/camera-presets";
+import { parseCamera } from "@/lib/storage-server";
 
 export const metadata = { title: "Edit video" };
 
-export default async function EditVideoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditVideoPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const ctx = await requirePermission("videos.create");
   const { id } = await params;
+  const { mode } = await searchParams;
   if (!isUuid(id)) notFound();
   const db = await createClient();
   const { data: project } = await db.from("video_projects").select("*").eq("id", id).maybeSingle();
@@ -30,6 +36,15 @@ export default async function EditVideoPage({ params }: { params: Promise<{ id: 
       .eq("project_id", id).order("created_at", { ascending: false }).limit(30),
   ]);
   const plan = currentPlan(project, listing, assets);
+  // AI clips people may use: finished, and not marked as having a problem
+  const { data: clipMeta } = assets.clips.length
+    ? await db.from("media_assets").select("id,camera_spec,ai_decision").in("id", assets.clips.map((c) => c.id))
+    : { data: [] };
+  const clipRows = assets.clips.flatMap((c) => {
+    const meta = (clipMeta ?? []).find((m) => m.id === c.id);
+    const decision = (meta?.ai_decision as { decision?: string } | null)?.decision;
+    return decision === "problem" ? [] : [{ ...c, camera_spec: meta?.camera_spec ?? null }];
+  });
   const [photoUrls, musicUrls, clipUrls] = await Promise.all([
     signedUrlMap(BUCKETS.listingMedia, assets.photos.flatMap((p) => [p.storage_path, p.thumbnail_path ?? ""]), 4 * 3600),
     signMusicUrls(assets.music.map((m) => m.storage_path), 4 * 3600),
@@ -58,7 +73,15 @@ export default async function EditVideoPage({ params }: { params: Promise<{ id: 
           initialRenders={(renders ?? []) as EditorRender[]}
           brandColor={ctx.brandKit?.primary_color ?? "#1D4ED8"}
           canDownload={ctx.profile.can_download}
-          clips={assets.clips.map((c) => ({ id: c.id, url: clipUrls[c.storage_path] ?? null }))}
+          clips={clipRows.map((c) => ({
+            id: c.id, url: clipUrls[c.storage_path] ?? null, sourceAssetId: c.source_asset_id, duration: c.duration_seconds == null ? null : Number(c.duration_seconds),
+            label: `${getStudioMove(parseCamera(c.camera_spec)?.move ?? "")?.name ?? "AI clip"} · photo ${(assets.photos.findIndex((p) => p.id === c.source_asset_id) + 1) || "?"}`,
+          }))}
+          initialMode={mode === "advanced" || mode === "easy" ? mode : ctx.profile.ui_mode === "advanced" ? "advanced" : "easy"}
+          listing={listing ? toEasyListing(listing) : null}
+          brand={{ company_name: ctx.brandKit?.company_name ?? null, outro_text: ctx.brandKit?.outro_text ?? null }}
+          voices={VOICE_LIST}
+          voiceReady={voiceModelsAvailable()}
         />
       )}
     </div>

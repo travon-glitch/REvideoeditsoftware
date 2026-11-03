@@ -15,7 +15,8 @@ function audioLength(file: File): Promise<number | null> {
 }
 
 /** Uploads a music file to the project's private folder and registers it. Throws an Error with a friendly message. */
-export async function uploadProjectMusic(orgId: string, projectId: string, file: File): Promise<UploadedMusic> {
+export async function uploadProjectMusic(orgId: string, projectId: string, file: File, opts: { authorized: boolean; purpose?: "music" | "narration" } = { authorized: false }): Promise<UploadedMusic> {
+  if (!opts.authorized) throw new Error("Confirm that you're authorised to use this audio.");
   const check = checkMusicFile(file);
   if (!check.ok) throw new Error(check.reason);
   const duration = await audioLength(file);
@@ -24,7 +25,7 @@ export async function uploadProjectMusic(orgId: string, projectId: string, file:
   if (error) throw new Error("The music couldn't be uploaded. Please try again.");
   const res = await fetch(`/api/projects/${projectId}/music`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, file_name: file.name, mime_type: file.type, size_bytes: file.size, duration_seconds: duration }),
+    body: JSON.stringify({ path, file_name: file.name, mime_type: file.type, size_bytes: file.size, duration_seconds: duration, authorized: true, purpose: opts.purpose ?? "music" }),
   }).catch(() => null);
   const body = await res?.json().catch(() => ({}));
   if (!res?.ok) throw new Error(body?.error ?? "The music couldn't be added.");

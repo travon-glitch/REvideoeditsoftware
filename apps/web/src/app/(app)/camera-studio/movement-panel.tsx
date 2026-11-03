@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { CANVAS_1080, type Aspect } from "@/lib/video/plan";
 import { cn } from "@/lib/utils";
 
-const RATIO: Record<Aspect, number> = { "16:9": 16 / 9, "9:16": 9 / 16, "1:1": 1 };
+const RATIO: Record<Aspect, number> = { "16:9": 16 / 9, "9:16": 9 / 16, "1:1": 1, "4:5": 4 / 5 };
 const TRAIL = 6;
 const BOX_MAX_HEIGHT = 340;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));

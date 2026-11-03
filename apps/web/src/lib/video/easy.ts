@@ -32,6 +32,7 @@ export const ORIENTATION_LABELS: Record<Aspect, { label: string; hint: string }>
   "16:9": { label: "Wide", hint: "YouTube, websites, MLS" },
   "9:16": { label: "Tall", hint: "Reels, TikTok, Shorts, Stories" },
   "1:1": { label: "Square", hint: "Facebook and Instagram posts" },
+  "4:5": { label: "Portrait", hint: "Instagram and Facebook feed" },
 };
 
 export interface StyleDef {
@@ -76,7 +77,7 @@ export const STYLES: Record<StyleId, StyleDef> = {
 export const easySettingsSchema = z.object({
   style: z.enum(STYLE_IDS),
   duration: z.union([z.literal(15), z.literal(30), z.literal(60)]),
-  aspect: z.enum(["16:9", "9:16", "1:1"]),
+  aspect: z.enum(["16:9", "9:16", "1:1", "4:5"]),
   musicAssetId: z.string().uuid().nullable(),
   showBranding: z.boolean(),
   aiEffects: z.boolean(),

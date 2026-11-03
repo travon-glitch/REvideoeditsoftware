@@ -15,8 +15,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  transpilePackages: ["@lvs/camera-presets"],
-  serverExternalPackages: ["@lvs/fablecut-core"],
+  transpilePackages: ["@lvs/camera-presets", "@lvs/voice"],
+  // native add-ons load from node_modules at runtime (the on-server voice engine)
+  serverExternalPackages: ["@lvs/fablecut-core", "sherpa-onnx-node"],
   experimental: {
     serverActions: { bodySizeLimit: "2mb" },
   },

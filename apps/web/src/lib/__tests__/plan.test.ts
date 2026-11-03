@@ -98,7 +98,7 @@ describe("plan → FableCut document", () => {
     expect(planSchema.safeParse({ ...p, scenes: [{ ...p.scenes[0]!, duration: 60 }] }).success).toBe(false);
     expect(planSchema.safeParse({ ...p, scenes: [{ ...p.scenes[0]!, move: "barrel_roll" }] }).success).toBe(false);
     expect(planSchema.safeParse({ ...p, texts: [{ ...p.texts[0]!, sceneId: "nope" }] }).success).toBe(false);
-    expect(planSchema.safeParse({ ...p, aspect: "4:5" }).success).toBe(false);
+    expect(planSchema.safeParse({ ...p, aspect: "5:4" }).success).toBe(false);
   });
 });
 

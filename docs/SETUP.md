@@ -119,6 +119,22 @@ npm run worker
 - Each copy renders one video at a time; start more copies for more throughput. Stuck jobs are retried automatically.
 - Check it end to end with `npm run test:render -w @lvs/web` (renders real test videos, ~2 minutes).
 
+## 8b. AI voiceovers and captions (on this server)
+
+Narration and subtitles run on the app server. No audio is sent anywhere else. Download the two models once
+(about 220 MB):
+
+```bash
+npm run fetch-models -w @lvs/voice
+```
+
+They are both Apache-2.0, from the sherpa-onnx GitHub releases:
+- **Kokoro-82M v1.0**, the text-to-speech voice;
+- **Zipformer small English**, the speech recognition that times the captions.
+
+Set `LVS_VOICE_MODELS=/path` to keep them elsewhere. The editor shows a notice until the models are installed.
+`ffmpeg` must be installed on the app server, because narration is stored as AAC.
+
 ## 9. Production checklist
 
 - Serve over HTTPS only (HSTS and `upgrade-insecure-requests` are sent automatically on HTTPS).

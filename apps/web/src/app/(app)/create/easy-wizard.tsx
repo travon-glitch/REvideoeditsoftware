@@ -375,11 +375,11 @@ export function EasyWizard(props: WizardProps) {
   /* ── Music ── */
   const [musicBusy, setMusicBusy] = useState(false);
   const [musicMsg, setMusicMsg] = useState<string | null>(null);
-  async function addMusic(file: File | undefined) {
+  async function addMusic(file: File | undefined, authorized: boolean) {
     if (!file || !projectId) return;
     setMusicBusy(true); setMusicMsg(null);
     try {
-      const added = await uploadProjectMusic(props.orgId, projectId, file);
+      const added = await uploadProjectMusic(props.orgId, projectId, file, { authorized });
       setMusic((m) => [...m, added]);
       setSettings({ musicAssetId: added.id });
       setMusicMsg(`Added “${file.name}”.`);
@@ -554,7 +554,7 @@ export function EasyWizard(props: WizardProps) {
           <h2 id="step3" className="text-2xl font-semibold">Make it yours</h2>
           <p className="text-base text-muted-foreground">We filled in what we know from the listing. Change anything you like.</p>
           <CustomizeStep details={st.details} settings={st.settings} music={music} errors={detailErrors} musicBusy={musicBusy} musicMsg={musicMsg}
-            onDetail={setDetail} onSettings={setSettings} onUploadMusic={(f) => void addMusic(f)} />
+            onDetail={setDetail} onSettings={setSettings} onUploadMusic={(f, ok) => void addMusic(f, ok)} />
         </section>
       ) : null}
 
