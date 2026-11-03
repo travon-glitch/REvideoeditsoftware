@@ -45,7 +45,7 @@ function friendly(message: string): string {
 }
 
 /** The listing's photos as images for Claude (thumbnail when there is one, otherwise the photo if it's small enough). */
-async function loadImages(db: Db, listingId: string, coverId: string | null) {
+export async function loadImages(db: Db, listingId: string, coverId: string | null) {
   const { data: rows } = await db.from("media_assets").select("id,storage_path,thumbnail_path,mime_type,size_bytes").eq("listing_id", listingId).eq("kind", "photo").order("sort_order").limit(30);
   const ordered = orderForVideo(rows ?? [], coverId);
   const images: DirectorImage[] = [];

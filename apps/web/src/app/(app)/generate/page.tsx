@@ -5,9 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/storage";
 import { parseCamera, signedUrlMap } from "@/lib/storage-server";
 import { BUCKETS } from "@/lib/storage";
-import { BATCH_TYPES, BATCH_TYPE_INFO, analyzeListing } from "@/lib/video/batch";
+import { BATCH_TYPES, BATCH_TYPE_INFO, SHAPES, analyzeListing, buildBatch, estimateRenderMinutes } from "@/lib/video/batch";
+import { batchAiEstimate } from "@/lib/video/batch-store";
 import { toEasyListing } from "@/lib/video/project-store";
-import { ORIENTATION_LABELS } from "@/lib/video/easy";
 import { formatDateTime } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +30,14 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
   const options = (listings ?? []).map((l) => ({ id: l.id, label: [l.address_line || "Untitled listing", l.city].filter(Boolean).join(", "), photos: photoCount.get(l.id) ?? 0 }));
   const selectedId = isUuid(wanted) && options.some((o) => o.id === wanted) ? wanted : options.find((o) => o.photos >= 5)?.id ?? options[0]?.id ?? null;
 
+  const { data: allowanceRaw } = await db.rpc("my_generation_allowance");
+  const allowance = (allowanceRaw ?? {}) as {
+    can_batch?: boolean; can_use_ai?: boolean; daily_limit?: number | null; used_today?: number; monthly_limit?: number | null;
+    used_this_month?: number; concurrent_render_limit?: number | null; director_available?: boolean; claude_model?: string; ai_budget_left_cents?: number | null;
+  };
   let analysis = null as ReturnType<typeof analyzeListing> | null;
+  let renderMinutes = 0;
+  let aiEstimate: Awaited<ReturnType<typeof batchAiEstimate>> = null;
   let cover: string | null = null;
   if (selectedId) {
     const [{ data: listing }, { data: photos }] = await Promise.all([
@@ -38,7 +45,14 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
       db.from("media_assets").select("id,width,height,camera_spec,storage_path,thumbnail_path").eq("listing_id", selectedId).eq("kind", "photo").order("sort_order"),
     ]);
     if (listing) {
-      analysis = analyzeListing(toEasyListing(listing), (photos ?? []).map((p) => ({ id: p.id, width: p.width, height: p.height, camera: parseCamera(p.camera_spec) })));
+      const batchPhotos = (photos ?? []).map((p) => ({ id: p.id, width: p.width, height: p.height, camera: parseCamera(p.camera_spec) }));
+      analysis = analyzeListing(toEasyListing(listing), batchPhotos);
+      if (batchPhotos.length >= 5) {
+        try {
+          renderMinutes = estimateRenderMinutes(buildBatch({ listing: toEasyListing(listing), photos: batchPhotos, brand: null }).map((b) => b.plan), allowance.concurrent_render_limit ?? 2);
+        } catch { renderMinutes = 0; }
+      }
+      if (allowance.director_available && allowance.can_use_ai) aiEstimate = await batchAiEstimate(db, selectedId);
       const c = (photos ?? []).find((p) => p.id === listing.cover_asset_id) ?? photos?.[0];
       if (c) cover = (await signedUrlMap(BUCKETS.listingMedia, [c.thumbnail_path ?? c.storage_path], 3600))[c.thumbnail_path ?? c.storage_path] ?? null;
     }
@@ -81,12 +95,24 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
                       <li key={t} className="rounded-lg border p-3">
                         <p className="font-semibold">{i + 1}. {BATCH_TYPE_INFO[t].title}</p>
                         <p className="text-sm text-muted-foreground">{BATCH_TYPE_INFO[t].purpose}</p>
-                        <p className="mt-1 text-xs font-semibold text-muted-foreground">{ORIENTATION_LABELS[BATCH_TYPE_INFO[t].aspect].label}</p>
+                        <p className="mt-1 text-xs font-semibold text-muted-foreground">Emphasis: {BATCH_TYPE_INFO[t].emphasis}</p>
                       </li>
                     ))}
                   </ol>
-                  <GenerateButton listingId={selected.id} disabled={!ctx.profile.can_batch_generate || selected.photos < 5}
-                    reason={selected.photos < 5 ? `Add at least 5 photos — this listing has ${selected.photos}.` : null} />
+                  <GenerateButton
+                    listingId={selected.id}
+                    disabled={!ctx.profile.can_batch_generate || selected.photos < 5}
+                    reason={selected.photos < 5 ? `Add at least 5 photos — this listing has ${selected.photos}.` : null}
+                    shapes={SHAPES}
+                    usage={{
+                      videos: BATCH_TYPES.length,
+                      dailyLeft: allowance.daily_limit == null ? null : Math.max(0, allowance.daily_limit - (allowance.used_today ?? 0)),
+                      monthlyLeft: allowance.monthly_limit == null ? null : Math.max(0, allowance.monthly_limit - (allowance.used_this_month ?? 0)),
+                      renderMinutes,
+                      concurrent: allowance.concurrent_render_limit ?? null,
+                    }}
+                    ai={aiEstimate ? { cents: aiEstimate.cents, photos: aiEstimate.photos, budgetLeftCents: allowance.ai_budget_left_cents ?? null } : null}
+                  />
                 </div>
               </div>
             ) : null}

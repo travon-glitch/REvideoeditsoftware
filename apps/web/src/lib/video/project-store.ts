@@ -43,7 +43,7 @@ export async function savePlan(db: Db, ctx: SessionContext, projectId: string, p
   const assets = await loadProjectAssets(db, project);
   const misuse = planUsesOnly(plan, assets);
   if (misuse) return { ok: false, status: 400, message: misuse };
-  const document = composeDocument({ plan, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, brand: ctx.brandKit });
+  const document = composeDocument({ plan, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, logo: (assets.logos ?? []).find((l) => l.id === plan.logoAssetId) ?? null, brand: ctx.brandKit });
   const check = validateFableCutDocument(document);
   if (!check.ok) return { ok: false, status: 400, message: "This change can't be saved. Please undo it and try again." };
 
@@ -82,7 +82,7 @@ export async function queueRenders(db: Db, ctx: SessionContext, projectId: strin
   const assets = await loadProjectAssets(db, project);
   const rows = [];
   for (const aspect of [...new Set(aspects)]) {
-    const document = composeDocument({ plan, aspect, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, brand: ctx.brandKit });
+    const document = composeDocument({ plan, aspect, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, logo: (assets.logos ?? []).find((l) => l.id === plan.logoAssetId) ?? null, brand: ctx.brandKit });
     if (!validateFableCutDocument(document).ok) return { ok: false, status: 400, message: "This video can't be made yet. Please check your photos." };
     rows.push({
       organization_id: project.organization_id, project_id: projectId, revision: project.revision, preset: "master-1080p",

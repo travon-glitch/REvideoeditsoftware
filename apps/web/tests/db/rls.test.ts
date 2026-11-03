@@ -58,7 +58,7 @@ describe("migration", () => {
     expect(t.rows.map((r) => r.slug)).toEqual(["luxury", "modern", "just-listed", "open-house", "social-reel", "highlights"]);
     const b = await db.query<{ id: string; public: boolean }>(`select id, public from storage.buckets order by id`);
     expect(b.rows).toEqual([
-      { id: "ai-clips", public: false }, { id: "brand-assets", public: false }, { id: "listing-media", public: false },
+      { id: "ai-clips", public: false }, { id: "brand-assets", public: false }, { id: "listing-media", public: false }, { id: "music-library", public: false },
       { id: "project-media", public: false }, { id: "video-exports", public: false },
     ]);
   });

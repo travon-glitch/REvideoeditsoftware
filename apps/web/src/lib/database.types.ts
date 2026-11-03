@@ -64,7 +64,7 @@ export type ListingMemberRow = {
 };
 export type MediaAssetRow = {
   id: string; organization_id: string; listing_id: string | null; uploaded_by: string | null; kind: AssetKind;
-  bucket: "listing-media" | "brand-assets" | "video-exports" | "project-media" | "ai-clips"; storage_path: string; file_name: string;
+  bucket: "listing-media" | "brand-assets" | "video-exports" | "project-media" | "ai-clips" | "music-library"; storage_path: string; file_name: string;
   mime_type: string; size_bytes: number; width: number | null; height: number | null;
   duration_seconds: number | null; room_label: string | null; sort_order: number; created_at: string;
   project_id: string | null; thumbnail_path: string | null;
@@ -97,6 +97,12 @@ export type GenerationJobRow = {
 };
 export type VideoBatchRow = {
   id: string; organization_id: string; listing_id: string | null; created_by: string | null; size: number; analysis: Json; created_at: string;
+  aspect: "16:9" | "9:16" | "1:1"; planner: "rules" | "ai_director";
+};
+export type MusicTrackRow = {
+  id: string; organization_id: string; asset_id: string; title: string; artist: string | null; mood: string; bpm: number | null;
+  license_type: "original_builtin" | "royalty_free" | "licensed" | "company_owned"; license_details: string; license_url: string | null;
+  commercial_use_verified: boolean; verified_by: string | null; verified_at: string | null; builtin_key: string | null; created_at: string;
 };
 export type LibraryVideoRow = {
   id: string; organization_id: string; render_job_id: string; project_id: string | null; title: string; aspect: string;
@@ -135,6 +141,7 @@ export type Database = {
       director_runs: Table<DirectorRunRow, "organization_id" | "style" | "model" | "photo_count">;
       organization_secrets: Table<OrganizationSecretRow, "organization_id" | "name" | "ciphertext" | "last4">;
       video_batches: Table<VideoBatchRow, "organization_id" | "size">;
+      music_tracks: Table<MusicTrackRow, "organization_id" | "asset_id" | "title" | "mood" | "license_type" | "license_details">;
       library_videos: Table<LibraryVideoRow, "organization_id" | "render_job_id" | "title" | "aspect" | "output_path">;
       brand_kits: Table<BrandKitRow, "organization_id" | "name">;
       listings: Table<ListingRow, "organization_id">;
@@ -177,7 +184,8 @@ export type Database = {
       start_director_run: { Args: { p_listing_id: string; p_style: string; p_photo_count: number }; Returns: DirectorRunRow };
       claude_key_status: { Args: Record<PropertyKey, never>; Returns: Json };
       director_available: { Args: Record<PropertyKey, never>; Returns: boolean };
-      start_video_batch: { Args: { p_listing_id: string; p_size: number; p_analysis?: Json }; Returns: VideoBatchRow };
+      start_video_batch: { Args: { p_listing_id: string; p_size: number; p_analysis?: Json; p_aspect?: string; p_planner?: string }; Returns: VideoBatchRow };
+      my_generation_allowance: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_set_batch_permission: { Args: { p_user_id: string; p_allowed: boolean }; Returns: ProfileRow };
       review_ai_clip: { Args: { p_asset: string; p_decision: "approved" | "problem"; p_note?: string | null }; Returns: Json };
       bootstrap_is_complete: { Args: Record<PropertyKey, never>; Returns: boolean };

@@ -4,7 +4,7 @@ import { BUCKETS } from "@/lib/storage";
 import { formatPrice } from "@/lib/utils";
 import { formatOpenHouse } from "@/lib/listings";
 import { specsLine } from "@/lib/video/starter-document";
-import { ASPECTS, initialPlan, planSchema, type Aspect, type EditPlan, type PlanClip, type PlanMusic, type PlanPhoto } from "@/lib/video/plan";
+import { ASPECTS, initialPlan, planSchema, type Aspect, type EditPlan, type PlanClip, type PlanLogo, type PlanMusic, type PlanPhoto } from "@/lib/video/plan";
 import type { BrandKitRow, ListingRow, VideoProjectRow } from "@/lib/database.types";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -14,11 +14,13 @@ export interface EditorAssets {
   music: PlanMusic[];
   /** AI camera clips made from the listing's photos. */
   clips: PlanClip[];
+  /** Brand kit logos registered as media. */
+  logos?: PlanLogo[];
 }
 
 /** Photos (and AI clips) of the project's listing and music uploaded to the project — the only files it may use. RLS applies. */
 export async function loadProjectAssets(db: Db, project: Pick<VideoProjectRow, "id" | "listing_id">): Promise<EditorAssets> {
-  const [photos, music, clips] = await Promise.all([
+  const [photos, music, clips, library, logos] = await Promise.all([
     project.listing_id
       ? db.from("media_assets").select("id,storage_path,thumbnail_path,file_name,width,height").eq("listing_id", project.listing_id).eq("kind", "photo").order("sort_order")
       : Promise.resolve({ data: [] as PlanPhoto[] }),
@@ -26,10 +28,18 @@ export async function loadProjectAssets(db: Db, project: Pick<VideoProjectRow, "
     project.listing_id
       ? db.from("media_assets").select("id,storage_path,file_name,width,height,duration_seconds,source_asset_id").eq("listing_id", project.listing_id).eq("kind", "ai_clip").eq("bucket", BUCKETS.aiClips).order("created_at")
       : Promise.resolve({ data: [] as PlanClip[] }),
+    // the company's music library — only tracks verified for commercial use
+    db.from("music_tracks").select("asset_id").eq("commercial_use_verified", true),
+    db.from("media_assets").select("id,storage_path,width,height").eq("bucket", BUCKETS.brandAssets).eq("kind", "logo"),
   ]);
+  const libraryIds = (library.data ?? []).map((t) => t.asset_id);
+  const { data: libraryMusic } = libraryIds.length
+    ? await db.from("media_assets").select("id,storage_path,file_name,duration_seconds").in("id", libraryIds).eq("bucket", BUCKETS.musicLibrary)
+    : { data: [] as PlanMusic[] };
   return {
     photos: (photos.data ?? []) as PlanPhoto[],
-    music: ((music.data ?? []) as PlanMusic[]).map((m) => ({ ...m, duration_seconds: m.duration_seconds == null ? null : Number(m.duration_seconds) })),
+    music: [...((music.data ?? []) as PlanMusic[]), ...((libraryMusic ?? []) as PlanMusic[])].map((m) => ({ ...m, duration_seconds: m.duration_seconds == null ? null : Number(m.duration_seconds) })),
+    logos: (logos.data ?? []) as PlanLogo[],
     clips: ((clips.data ?? []) as PlanClip[]).map((c) => ({ ...c, duration_seconds: c.duration_seconds == null ? null : Number(c.duration_seconds) })),
   };
 }
@@ -71,6 +81,7 @@ export function currentPlan(project: VideoProjectRow, listing: ListingRow | null
         texts: parsed.data.texts.filter((t) => t.sceneId.startsWith("@") || sceneIds.has(t.sceneId)),
         music: parsed.data.music.assetId && !musicIds.has(parsed.data.music.assetId)
           ? { ...parsed.data.music, assetId: null } : parsed.data.music,
+        logoAssetId: parsed.data.logoAssetId && (assets.logos ?? []).some((l) => l.id === parsed.data.logoAssetId) ? parsed.data.logoAssetId : undefined,
       };
     }
   }
@@ -85,6 +96,7 @@ export function planUsesOnly(plan: EditPlan, assets: EditorAssets): string | nul
   const badClip = plan.scenes.find((s) => s.clipAssetId && !assets.clips.some((c) => c.id === s.clipAssetId && c.source_asset_id === s.assetId));
   if (badClip) return "A scene uses an AI clip that wasn't made from its photo.";
   if (plan.music.assetId && !assets.music.some((m) => m.id === plan.music.assetId)) return "The chosen music isn't part of this project.";
+  if (plan.logoAssetId && !(assets.logos ?? []).some((l) => l.id === plan.logoAssetId)) return "The brand logo isn't available.";
   return null;
 }
 

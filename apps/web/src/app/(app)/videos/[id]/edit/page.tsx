@@ -4,7 +4,7 @@ import { ArrowLeft, Wand2 } from "lucide-react";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { BUCKETS, isUuid } from "@/lib/storage";
-import { signedUrlMap } from "@/lib/storage-server";
+import { signMusicUrls, signedUrlMap } from "@/lib/storage-server";
 import { currentPlan, loadProjectAssets } from "@/lib/video/editor-data";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
@@ -32,7 +32,7 @@ export default async function EditVideoPage({ params }: { params: Promise<{ id: 
   const plan = currentPlan(project, listing, assets);
   const [photoUrls, musicUrls, clipUrls] = await Promise.all([
     signedUrlMap(BUCKETS.listingMedia, assets.photos.flatMap((p) => [p.storage_path, p.thumbnail_path ?? ""]), 4 * 3600),
-    signedUrlMap(BUCKETS.projectMedia, assets.music.map((m) => m.storage_path), 4 * 3600),
+    signMusicUrls(assets.music.map((m) => m.storage_path), 4 * 3600),
     signedUrlMap(BUCKETS.aiClips, assets.clips.map((c) => c.storage_path), 4 * 3600),
   ]);
 

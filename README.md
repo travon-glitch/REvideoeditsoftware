@@ -9,7 +9,7 @@ No public registration, no subscriptions, no billing, no public project access.
 | `packages/fablecut-core` | Vendored FableCut editor/render engine (MIT), unmodified, + a small Node wrapper |
 | `packages/camera-presets` | Camera moves for listing photos; includes Open-Generative-AI's lens tables (MIT) verbatim |
 | `supabase/` | Database migration (schema, Row-Level Security, storage, one-time setup), local config |
-| `docs/` | Stage 1 audit & architecture, setup guide, Stage 2 report |
+| `docs/` | Architecture, setup guide, and one report per stage (`STAGE2.md` … `STAGE10.md`) |
 | `reference/` | Upstream clones for auditing — git-ignored, never deployed |
 
 ## Quick start

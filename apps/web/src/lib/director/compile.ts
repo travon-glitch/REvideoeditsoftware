@@ -48,6 +48,8 @@ export function compileStoryboard(input: {
   photos: DirectorPhoto[];
   facts: VerifiedFacts;
   style: DirectorStyle;
+  /** Shape override (batch videos). */
+  aspect?: "16:9" | "9:16" | "1:1";
 }): CompiledStoryboard {
   const { storyboard: sb, photos, facts, style } = input;
   const warnings: CompileWarning[] = [];
@@ -127,7 +129,7 @@ export function compileStoryboard(input: {
 
   const plan = planSchema.parse({
     version: 1,
-    aspect: DIRECTOR_STYLE_INFO[style].aspect,
+    aspect: input.aspect ?? DIRECTOR_STYLE_INFO[style].aspect,
     transition,
     scenes,
     texts: texts.slice(0, MAX_TEXTS),

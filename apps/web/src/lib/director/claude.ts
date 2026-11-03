@@ -107,8 +107,12 @@ Prefer gentle, standard moves (push_in, pull_out, truck_left, truck_right, pan_l
 }
 
 /** Call 2 — the storyboard. */
-export function storyboardRequest(model: DirectorModel, input: { style: DirectorStyle; facts: VerifiedFacts; analysis: PhotoAnalysis; photoCount: number }): StreamParams {
-  const s = DIRECTOR_STYLE_INFO[input.style];
+export function storyboardRequest(model: DirectorModel, input: {
+  style: DirectorStyle; facts: VerifiedFacts; analysis: PhotoAnalysis; photoCount: number;
+  /** Batch videos: their own title, brief, shape and length. */
+  override?: { label: string; brief: string; aspect: "16:9" | "9:16" | "1:1"; seconds: [number, number] };
+}): StreamParams {
+  const s = input.override ?? DIRECTOR_STYLE_INFO[input.style];
   const moves = STUDIO_MOVES.map((m) => `${m.id}${m.requiresAI ? " (needs AI video — avoid)" : ""}`).join(", ");
   const text = `Plan a ${s.label} real estate video (${s.aspect}, ${s.seconds[0]}–${s.seconds[1]} seconds in total).
 Style: ${s.brief}
@@ -133,24 +137,48 @@ Write the ending call to action using only the agent, brokerage, phone or email 
   };
 }
 
+/**
+ * A deliberately generous estimate (cents) for planning a batch with the AI Director:
+ * one photo analysis + one storyboard per video, including thinking tokens.
+ * Shown to the person before anything runs; the real cost is recorded afterwards.
+ */
+export function estimateBatchCents(model: DirectorModel, photoCount: number, videos: number): number {
+  const analysis = { input_tokens: 2500 + photoCount * 450, output_tokens: 1500 + photoCount * 250, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+  const storyboard = { input_tokens: (4000 + photoCount * 150) * videos, output_tokens: 7000 * videos, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+  return Math.ceil(costCents(model, analysis) + costCents(model, storyboard));
+}
+
 export interface DirectorResult { analysis: PhotoAnalysis; storyboard: Storyboard; usage: Usage; model: DirectorModel; servedBy: string[] }
 
-/** Runs both calls. Throws DirectorError with a friendly message on refusals or bad output. */
-export async function runDirector(call: CallClaude, input: { model: DirectorModel; style: DirectorStyle; facts: VerifiedFacts; images: DirectorImage[] }): Promise<DirectorResult> {
-  if (input.images.length === 0) throw new DirectorError("Add photos to the listing first.");
-  const usage: Usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
-  const servedBy: string[] = [];
-  const m1 = await call(photoAnalysisRequest(input.model, input.images));
+export function emptyUsage(): Usage { return { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }; }
+
+/** Call 1 on its own (shared by all videos of a batch). */
+export async function analysePhotos(call: CallClaude, model: DirectorModel, images: DirectorImage[], usage: Usage, servedBy: string[] = []): Promise<PhotoAnalysis> {
+  if (images.length === 0) throw new DirectorError("Add photos to the listing first.");
+  const m1 = await call(photoAnalysisRequest(model, images));
   addUsage(usage, m1.usage); servedBy.push(m1.model);
   const analysis = readJson(m1, photoAnalysisSchema, "photo analysis");
-  const refs = new Set(input.images.map((i) => i.ref));
+  const refs = new Set(images.map((i) => i.ref));
   analysis.photos = analysis.photos.filter((p) => refs.has(p.ref.trim().toUpperCase())).map((p) => ({
     ...p, ref: p.ref.trim().toUpperCase(),
     quality: Math.min(10, Math.max(1, Math.round(p.quality))), opener_score: Math.min(10, Math.max(1, Math.round(p.opener_score))),
   }));
   if (analysis.photos.length === 0) throw new DirectorError("Claude's photo analysis didn't match the photos sent.");
-  const m2 = await call(storyboardRequest(input.model, { style: input.style, facts: input.facts, analysis, photoCount: input.images.length }));
+  return analysis;
+}
+
+/** Call 2 on its own. */
+export async function planStoryboard(call: CallClaude, model: DirectorModel, input: Parameters<typeof storyboardRequest>[1], usage: Usage, servedBy: string[] = []): Promise<Storyboard> {
+  const m2 = await call(storyboardRequest(model, input));
   addUsage(usage, m2.usage); servedBy.push(m2.model);
-  const storyboard = readJson(m2, storyboardSchema, "storyboard");
+  return readJson(m2, storyboardSchema, "storyboard");
+}
+
+/** Runs both calls. Throws DirectorError with a friendly message on refusals or bad output. */
+export async function runDirector(call: CallClaude, input: { model: DirectorModel; style: DirectorStyle; facts: VerifiedFacts; images: DirectorImage[] }): Promise<DirectorResult> {
+  const usage = emptyUsage();
+  const servedBy: string[] = [];
+  const analysis = await analysePhotos(call, input.model, input.images, usage, servedBy);
+  const storyboard = await planStoryboard(call, input.model, { style: input.style, facts: input.facts, analysis, photoCount: input.images.length }, usage, servedBy);
   return { analysis, storyboard, usage, model: input.model, servedBy };
 }

@@ -91,6 +91,8 @@ export const planSchema = z.object({
     volume: z.number().min(0).max(1),
     fadeOut: z.boolean(),
   }),
+  /** The company's brand kit logo, shown small in a corner for the whole video. */
+  logoAssetId: uuid.optional(),
   /** Easy Mode choices this plan was built from; `customized` turns true after Advanced edits. */
   easy: z.object({
     style: z.string().max(40),
@@ -120,6 +122,8 @@ export type EditPlan = z.infer<typeof planSchema>;
 
 export interface PlanPhoto { id: string; storage_path: string; file_name: string; width: number | null; height: number | null; thumbnail_path?: string | null }
 export interface PlanMusic { id: string; storage_path: string; file_name: string; duration_seconds: number | null }
+/** The brand kit logo (brand-assets). */
+export interface PlanLogo { id: string; storage_path: string; width: number | null; height: number | null }
 /** An AI camera clip (video) made from one of the listing's photos. */
 export interface PlanClip { id: string; storage_path: string; file_name: string; width: number | null; height: number | null; duration_seconds: number | null; source_asset_id: string | null }
 export interface PlanBrand { primary_color: string; heading_font: string; body_font: string }
@@ -261,6 +265,8 @@ export function composeDocument(input: {
   aspect?: Aspect;
   /** AI camera clips the plan may use. */
   clips?: PlanClip[];
+  /** The brand logo, when the plan shows it. */
+  logo?: PlanLogo | null;
 }): Record<string, unknown> {
   const plan = input.plan;
   const aspect = input.aspect ?? plan.aspect;
@@ -284,6 +290,12 @@ export function composeDocument(input: {
     id: mediaIdFor(p.id), assetId: p.id, name: p.file_name, kind: "image", src: `/media/${mediaFileName(p.storage_path)}`,
     ...(p.width && p.height ? { width: p.width, height: p.height } : {}),
   }));
+  const logo = plan.logoAssetId ? input.logo : null;
+  if (plan.logoAssetId && (!logo || logo.id !== plan.logoAssetId)) throw new Error("The brand logo is not available");
+  if (logo) {
+    media.push({ id: mediaIdFor(logo.id), assetId: logo.id, name: "Logo", kind: "image", src: `/media/${mediaFileName(logo.storage_path)}`,
+      ...(logo.width && logo.height ? { width: logo.width, height: logo.height } : {}) });
+  }
   for (const c of usedClips) {
     media.push({
       id: mediaIdFor(c.id), assetId: c.id, name: c.file_name, kind: "video", src: `/media/${mediaFileName(c.storage_path)}`,
@@ -344,6 +356,18 @@ export function composeDocument(input: {
     });
   });
 
+  if (logo) {
+    // small, top-right, for the whole video (contain-fit, then scaled to ~18% of the short side)
+    const lw = logo.width || 1, lh = logo.height || 1;
+    const f = Math.min(canvas.width / lw, canvas.height / lh);
+    const target = Math.min(canvas.width, canvas.height) * 0.18;
+    const scale = round(Math.min(target / (lw * f), (target * 0.6) / (lh * f)));
+    const w = lw * f * scale, h = lh * f * scale, pad = Math.round(Math.min(canvas.width, canvas.height) * 0.04);
+    clips.push({
+      id: "c_logo", mediaId: mediaIdFor(logo.id), kind: "image", track: "V4", start: 0, in: 0, duration: total, name: "Logo",
+      props: { fit: "contain", scale, opacity: 0.92, x: round(canvas.width / 2 - pad - w / 2), y: round(-canvas.height / 2 + pad + h / 2) },
+    });
+  }
   if (music) {
     const len = round(Math.min(total, music.duration_seconds ? Number(music.duration_seconds) : total));
     const clip: Record<string, unknown> = {
@@ -366,7 +390,7 @@ export function composeDocument(input: {
     panSchema: 1,
     markers: [],
     tracks: [
-      { id: "V3", kind: "video" }, { id: "V2", kind: "video" }, { id: "V1", kind: "video" },
+      { id: "V4", kind: "video" }, { id: "V3", kind: "video" }, { id: "V2", kind: "video" }, { id: "V1", kind: "video" },
       { id: "A1", kind: "audio" }, { id: "A2", kind: "audio" },
     ],
     media,

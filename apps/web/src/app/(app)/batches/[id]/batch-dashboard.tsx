@@ -13,7 +13,7 @@ import type { Aspect } from "@/lib/video/plan";
 import { cn } from "@/lib/utils";
 
 interface Data {
-  batch: { id: string; listing_id: string | null; size: number; created_at: string; analysis: ListingAnalysis | null; address: string };
+  batch: { id: string; listing_id: string | null; size: number; created_at: string; analysis: ListingAnalysis | null; address: string; aspect?: string; planner?: string };
   videos: BatchVideo[];
 }
 
@@ -91,7 +91,7 @@ export function BatchDashboard({ initial, canDownload, canEdit }: { initial: Dat
           const pct = r ? Math.round(Number(r.progress) * 100) : 0;
           return (
             <li key={v.type} className="flex flex-col overflow-hidden rounded-2xl border bg-card">
-              <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-neutral-900">
+              <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden bg-neutral-900">
                 {playing === v.type && r?.status === "succeeded" && canDownload && v.projectId ? (
                   <video autoPlay controls playsInline className="size-full object-contain" aria-label={`${v.title} preview`}
                     src={`/api/projects/${v.projectId}/renders/${r.id}/download?play=1`} />
@@ -114,6 +114,7 @@ export function BatchDashboard({ initial, canDownload, canEdit }: { initial: Dat
                   <h2 className="text-lg font-semibold">{v.title}</h2>
                   <p className="text-sm text-muted-foreground">{v.purpose}</p>
                 </div>
+                {v.music ? <p className="text-sm text-muted-foreground">Music: <span className="font-medium text-foreground">{v.music}</span> (licensed)</p> : null}
                 <p className="text-sm text-muted-foreground">
                   {r?.status === "succeeded" ? `${secs(Number(r.duration_seconds))} · ${r.width}×${r.height} MP4` : `About ${secs(v.plannedSeconds)}`}
                 </p>

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { BUCKETS, isUuid } from "@/lib/storage";
-import { signListingPhotos, signedUrlMap } from "@/lib/storage-server";
+import { signListingPhotos, signMusicUrls, signedUrlMap } from "@/lib/storage-server";
 import { orderForVideo } from "@/lib/listings";
 import { currentPlan, loadProjectAssets } from "@/lib/video/editor-data";
 import { RENDER_FIELDS, toEasyListing } from "@/lib/video/project-store";
@@ -57,7 +57,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Promi
     revision = project.revision;
     const assets = await loadProjectAssets(db, project);
     savedPlan = assets.photos.length ? currentPlan(project, listing, assets) : null;
-    const musicUrls = await signedUrlMap(BUCKETS.projectMedia, assets.music.map((m) => m.storage_path), 4 * 3600);
+    const musicUrls = await signMusicUrls(assets.music.map((m) => m.storage_path), 4 * 3600);
     music = assets.music.map((m) => ({ id: m.id, file_name: m.file_name, duration_seconds: m.duration_seconds, url: musicUrls[m.storage_path] ?? null }));
     const { data: r } = await db.from("render_jobs").select(RENDER_FIELDS).eq("project_id", project.id).order("created_at", { ascending: false }).limit(10);
     renders = (r ?? []) as unknown as WizardRender[];

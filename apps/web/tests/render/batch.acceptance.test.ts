@@ -1,22 +1,26 @@
 /*
- * STAGE 8 ACCEPTANCE — Generate 6 Videos.
+ * STAGE 10 ACCEPTANCE — Six-Video Automatic Generator.
  *
- *  "Upload 20 property photos. Generate six distinct real videos.
- *   Confirm each is playable and downloadable."
+ *  "Create six distinct downloadable MP4 videos from one existing listing.
+ *   Check all six outputs."
  *
- *  1. 20 photos: the two real building exteriors (OpenCV samples, Apache-2.0) and 18
- *     distinct room images (3 of them tall), as a listing would have them.
- *  2. The listing is analysed and the six storyboards are built with the same code the
- *     "Generate 6 Videos" button runs (buildBatch).
- *  3. Six background render jobs go through the real render worker (isolated FableCut →
- *     headless Chrome → FFmpeg). One job's first attempt hits a storage error on purpose:
- *     the other five must still finish, and retrying ONLY that job must succeed.
- *  4. Every MP4 is checked: right shape and length, H.264, decodes cleanly, plays in
- *     Chrome, and the six are genuinely different (shape, length, opening picture).
- *  5. "Download all as ZIP": the six files are zipped with the same ZIP writer the
- *     download route uses, and the ZIP is opened and verified.
+ *  1. One listing with 20 photos (two real building exteriors, OpenCV samples, Apache-2.0,
+ *     plus 18 distinct room images), the company's brand logo, and the built-in licensed
+ *     music library (original tracks in apps/web/assets/music, company-owned).
+ *  2. The six storyboards are built by the same code the "Generate 6 Videos" button runs
+ *     (buildBatch): Cinematic Property Tour, Just Listed Reel, Luxury Highlights,
+ *     Open House Promotion, Short Social Media Reel, Agent-Branded Advertisement —
+ *     vertical 1080×1920 by default, address + price on every one, logo, music per mood.
+ *  3. Six background render jobs go through the real render worker (FableCut → headless
+ *     Chrome → FFmpeg). One job's first attempt hits a storage error on purpose: the other
+ *     five still finish, and retrying ONLY that job succeeds.
+ *  4. All six MP4s are checked: 1080×1920, planned length, H.264 + AAC music that isn't
+ *     silent, clean decode, plays in Chrome, the logo is in the corner, and the six are
+ *     genuinely different (length, opening picture, structure).
+ *  5. "Download All as ZIP" with the same ZIP writer the download route uses; the ZIP is
+ *     opened and verified.
  *
- * Run with: npm run test:render -w @lvs/web   (≈ 6–9 minutes)
+ * Run with: npm run test:render -w @lvs/web   (≈ 6–10 minutes)
  */
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -25,8 +29,8 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CHROME_WRAPPER, processJob, probe, type AssetRow, type JobDeps } from "@lvs/render-worker";
-import { BATCH_TYPE_INFO, analyzeListing, buildBatch, structureOf, type BatchType } from "@/lib/video/batch";
-import { CANVAS_1080, composeDocument, totalDuration } from "@/lib/video/plan";
+import { BATCH_TYPES, BATCH_TYPE_INFO, analyzeListing, buildBatch, structureOf, type BatchType } from "@/lib/video/batch";
+import { composeDocument, totalDuration, type PlanLogo, type PlanMusic } from "@/lib/video/plan";
 import { validateFableCutDocument } from "@/lib/video/validate-document";
 import { zipName, zipStream, type ZipEntry } from "@/lib/zip";
 import type { EasyListing } from "@/lib/video/easy";
@@ -34,6 +38,7 @@ import type { EasyListing } from "@/lib/video/easy";
 const hasTools = spawnSync("ffmpeg", ["-version"]).status === 0 && existsSync("/usr/bin/google-chrome");
 process.env.LVS_CHROME_BIN ??= process.env.LVS_TEST_CHROME ?? "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome";
 const OUT = join(__dirname, "..", "..", "test-output", "batch");
+const MUSIC_DIR = join(__dirname, "..", "..", "assets", "music");
 const FIX = join(__dirname, "..", "fixtures");
 const org = randomUUID(), listingId = randomUUID();
 
@@ -62,6 +67,32 @@ function makePhotos() {
   }
 }
 
+/* The company's licensed music library (built-in original tracks) and its brand logo. */
+const TRACKS = [
+  { key: "elegant-evening", title: "Elegant Evening", mood: "elegant" }, { key: "bright-open-house", title: "Bright Open House", mood: "upbeat" },
+  { key: "calm-morning", title: "Calm Morning", mood: "calm" }, { key: "warm-welcome", title: "Warm Welcome", mood: "warm" },
+  { key: "inspiring-skyline", title: "Inspiring Skyline", mood: "inspiring" },
+].map((t) => {
+  const id = randomUUID();
+  return { ...t, file: join(MUSIC_DIR, `${t.key}.m4a`), row: { id, organization_id: org, listing_id: null, project_id: null, kind: "audio", bucket: "music-library", storage_path: `${org}/music/${id}.m4a` } as AssetRow };
+});
+const logoId = randomUUID();
+const logo = { file: join(OUT, "logo.png"), row: { id: logoId, organization_id: org, listing_id: null, project_id: null, kind: "logo", bucket: "brand-assets", storage_path: `${org}/brand/${logoId}.png` } as AssetRow };
+function makeLogo() {
+  // a solid magenta badge so the corner can be found in the frames
+  const r = spawnSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0xFF00FF:s=600x240", "-frames:v", "1", logo.file]);
+  if (r.status !== 0) throw new Error(String(r.stderr));
+}
+/** Same rule as the server: the track for the video's mood, a different one for each video where possible. */
+function musicFor(types: readonly BatchType[]) {
+  const used = new Set<string>();
+  return Object.fromEntries(types.map((t) => {
+    const pick = TRACKS.find((x) => x.mood === BATCH_TYPE_INFO[t].mood && !used.has(x.key)) ?? TRACKS.find((x) => !used.has(x.key)) ?? TRACKS[0]!;
+    used.add(pick.key);
+    return [t, pick.row.id];
+  })) as Record<BatchType, string>;
+}
+
 const listing: EasyListing = {
   address_line: "742 Evergreen Terrace", city: "Springfield", state: "OR", price: 525000, bedrooms: 4, bathrooms: 2.5, square_feet: 2150,
   property_type: "single_family", status: "for_sale", agent_name: "Alice Agent", brokerage: "Acme Realty", contact_phone: "555-0100",
@@ -70,12 +101,13 @@ const listing: EasyListing = {
 const BRAND = { primary_color: "#1D4ED8", heading_font: "Montserrat", body_font: "Inter" };
 
 function deps(projectId: string, stored: Map<string, Uint8Array>, failDownload = false): JobDeps {
-  const byPath = new Map(photos.map((p) => [p.row.storage_path, p.file]));
+  const all = [...photos, ...TRACKS, logo];
+  const byPath = new Map(all.map((p) => [p.row.storage_path, p.file]));
   return {
     chrome: DEFAULT_CHROME_WRAPPER,
     timeoutMs: 15 * 60_000,
     async loadProject(id) { return id === projectId ? { id, organization_id: org, listing_id: listingId, title: "Batch video" } : null; },
-    async loadAssets(ids) { return photos.map((p) => p.row).filter((r) => ids.includes(r.id)); },
+    async loadAssets(ids) { return all.map((p) => p.row).filter((r) => ids.includes(r.id)); },
     async download(_bucket, path) {
       if (failDownload) throw new Error("Storage is temporarily unavailable");
       return new Uint8Array(readFileSync(byPath.get(path)!));
@@ -87,30 +119,47 @@ function deps(projectId: string, stored: Map<string, Uint8Array>, failDownload =
   };
 }
 
-describe.skipIf(!hasTools)("Stage 8 acceptance: 20 photos → six distinct, playable, downloadable videos", () => {
-  const results = new Map<BatchType, { file: string; planned: number; aspect: string }>();
+describe.skipIf(!hasTools)("Stage 10 acceptance: one listing → six distinct, vertical, downloadable MP4s", () => {
+  const results = new Map<BatchType, { file: string; planned: number; aspect: string; doc: Record<string, unknown> }>();
 
   it("analyses the listing and builds six different storyboards", () => {
     makePhotos();
+    makeLogo();
+    for (const t of TRACKS) expect(existsSync(t.file), t.key).toBe(true);
     const analysis = analyzeListing(listing, photos.map((p) => ({ id: p.row.id, width: p.width, height: p.height })));
     expect(analysis.photoCount).toBe(20);
     expect(analysis.landscapePhotos).toBe(17); // 3 of the generated rooms are tall
-    const batch = buildBatch({ listing, photos: photos.map((p) => ({ id: p.row.id, width: p.width, height: p.height })), brand: { company_name: "Acme Realty", outro_text: null } });
-    expect(batch).toHaveLength(6);
+    const batch = buildBatch({
+      listing, photos: photos.map((p) => ({ id: p.row.id, width: p.width, height: p.height })), brand: { company_name: "Acme Realty", outro_text: null },
+      music: musicFor(BATCH_TYPES), logoAssetId: logo.row.id,
+    });
+    expect(batch.map((b) => b.type)).toEqual([...BATCH_TYPES]);
     expect(new Set(batch.map((b) => structureOf(b.plan))).size).toBe(6);
+    expect(new Set(batch.map((b) => b.plan.scenes[0]!.assetId)).size).toBe(6); // six different opening scenes
+    for (const { type, plan } of batch) {
+      expect(plan.aspect, type).toBe("9:16");
+      expect(plan.logoAssetId, type).toBe(logo.row.id);
+      expect(plan.music.assetId, type).toBeTruthy();
+      const text = plan.texts.map((t) => t.text).join(" | ");
+      expect(text, type).toContain("742 Evergreen Terrace");
+      expect(text, type).toContain("$525,000");
+    }
+    expect(new Set(batch.map((b) => b.plan.music.assetId)).size).toBe(5); // five library tracks across six videos
     (globalThis as { __batch?: typeof batch }).__batch = batch;
   });
 
   it("renders all six in background jobs; one failure doesn't stop the others; only the failed one is retried", async () => {
     const batch = (globalThis as { __batch?: ReturnType<typeof buildBatch> }).__batch!;
     const info = photos.map((p) => ({ id: p.row.id, storage_path: p.row.storage_path, file_name: "p.jpg", width: p.width, height: p.height }));
+    const music: PlanMusic[] = TRACKS.map((t) => ({ id: t.row.id, storage_path: t.row.storage_path, file_name: `${t.key}.m4a`, duration_seconds: 75 }));
+    const planLogo: PlanLogo = { id: logo.row.id, storage_path: logo.row.storage_path, width: 600, height: 240 };
     const jobs = batch.map(({ type, plan }) => {
       const projectId = randomUUID();
-      const doc = composeDocument({ plan, title: BATCH_TYPE_INFO[type].title, photos: info, music: [], brand: BRAND });
+      const doc = composeDocument({ plan, title: BATCH_TYPE_INFO[type].title, photos: info, music, brand: BRAND, logo: planLogo });
       expect(validateFableCutDocument(doc), type).toEqual({ ok: true });
       return { type, plan, projectId, job: { id: randomUUID(), organization_id: org, project_id: projectId, aspect: plan.aspect, document: doc } };
     });
-    const failing: BatchType = "highlights";
+    const failing: BatchType = "open-house";
     const attempts: Record<string, number> = {};
     const outcome: Record<string, boolean> = {};
     for (const j of jobs) {
@@ -121,7 +170,7 @@ describe.skipIf(!hasTools)("Stage 8 acceptance: 20 photos → six distinct, play
       if (r.ok) {
         const file = join(OUT, `${j.type}.mp4`);
         writeFileSync(file, [...stored.values()][0]!);
-        results.set(j.type, { file, planned: totalDuration(j.plan), aspect: j.plan.aspect });
+        results.set(j.type, { file, planned: totalDuration(j.plan), aspect: j.plan.aspect, doc: j.job.document });
       } else {
         expect(r.error).toMatch(/temporarily unavailable/);
       }
@@ -137,16 +186,21 @@ describe.skipIf(!hasTools)("Stage 8 acceptance: 20 photos → six distinct, play
     expect(r.error ?? "").toBe("");
     const file = join(OUT, `${failing}.mp4`);
     writeFileSync(file, [...stored.values()][0]!);
-    results.set(failing, { file, planned: totalDuration(retry.plan), aspect: retry.plan.aspect });
-    expect(attempts).toMatchObject({ [failing]: 2, "cinematic-tour": 1, luxury: 1 });
+    results.set(failing, { file, planned: totalDuration(retry.plan), aspect: retry.plan.aspect, doc: retry.job.document });
+    expect(attempts).toMatchObject({ [failing]: 2, "cinematic-tour": 1, "just-listed-reel": 1, "luxury-highlights": 1, "social-reel": 1, "agent-ad": 1 });
     expect(results.size).toBe(6);
   }, 1_800_000);
 
-  it("every video is a valid MP4 of the right shape and length, and decodes cleanly", () => {
+  it("every video is a vertical 1080p MP4 of the planned length, with music, and decodes cleanly", () => {
+    expect([...results.keys()].sort()).toEqual([...BATCH_TYPES].sort());
     for (const [type, r] of results) {
       const p = probe(r.file);
-      const c = CANVAS_1080[r.aspect as keyof typeof CANVAS_1080];
-      expect([p.width, p.height], type).toEqual([c.width, c.height]);
+      expect([p.width, p.height], type).toEqual([1080, 1920]);
+      const audio = spawnSync("ffprobe", ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name", "-of", "csv=p=0", r.file], { encoding: "utf8" }).stdout.trim();
+      expect(audio, `${type} audio`).toBe("aac");
+      const vol = spawnSync("ffmpeg", ["-v", "info", "-i", r.file, "-map", "0:a:0", "-af", "volumedetect", "-f", "null", "-"], { encoding: "utf8" }).stderr;
+      const mean = Number(/mean_volume: (-?[\d.]+) dB/.exec(vol)?.[1] ?? "-99");
+      expect(mean, `${type} music loudness`).toBeGreaterThan(-35);
       expect(Math.abs(p.durationSeconds - r.planned), `${type} ${p.durationSeconds} vs ${r.planned}`).toBeLessThan(0.6);
       expect(spawnSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "csv=p=0", r.file], { encoding: "utf8" }).stdout.trim(), type).toBe("h264");
       expect(spawnSync("ffmpeg", ["-v", "error", "-i", r.file, "-f", "null", "-"], { encoding: "utf8" }).stderr.trim(), type).toBe("");
@@ -156,7 +210,7 @@ describe.skipIf(!hasTools)("Stage 8 acceptance: 20 photos → six distinct, play
   it("the six are genuinely different videos", () => {
     const durations = [...results.values()].map((r) => Math.round(probe(r.file).durationSeconds));
     expect(new Set(durations).size).toBeGreaterThanOrEqual(5);
-    expect(new Set([...results.values()].map((r) => r.aspect))).toEqual(new Set(["16:9", "9:16", "1:1"]));
+    expect(new Set([...results.values()].map((r) => r.aspect))).toEqual(new Set(["9:16"]));
     // opening frames differ from each other (compare small greyscale thumbnails)
     const frame = (file: string) => spawnSync("ffmpeg", ["-v", "error", "-ss", "0.3", "-i", file, "-frames:v", "1", "-vf", "scale=32:32,format=gray", "-f", "rawvideo", "-"], { maxBuffer: 1 << 20 }).stdout as Buffer;
     const frames = [...results.values()].map((r) => frame(r.file));
@@ -168,6 +222,19 @@ describe.skipIf(!hasTools)("Stage 8 acceptance: 20 photos → six distinct, play
       if (d / 1024 > 6) pairsDifferent++;
     }
     expect(pairsDifferent).toBeGreaterThanOrEqual(pairs - 2);
+  });
+
+  it("every video carries the address, the price and the company logo", () => {
+    for (const [type, r] of results) {
+      const json = JSON.stringify(r.doc);
+      expect(json, type).toContain("742 Evergreen Terrace");
+      expect(json, type).toContain("$525,000");
+      expect(json, type).toContain("c_logo");
+      // the magenta logo is visible in the top-right corner of a frame
+      const px = spawnSync("ffmpeg", ["-v", "error", "-ss", "2", "-i", r.file, "-frames:v", "1", "-vf", "crop=120:40:880:62,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 1 << 16 }).stdout as Buffer;
+      const [red, green, blue] = [px[0]!, px[1]!, px[2]!];
+      expect(red > 150 && blue > 150 && green < 110, `${type} logo colour ${red},${green},${blue}`).toBe(true);
+    }
   });
 
   it("all six play in Chrome", async () => {
@@ -190,7 +257,7 @@ describe.skipIf(!hasTools)("Stage 8 acceptance: 20 photos → six distinct, play
 
   it("downloads: each file individually, and all six as one ZIP that opens and verifies", async () => {
     const used = new Set<string>();
-    const entries: ZipEntry[] = [...results.entries()].map(([type, r]) => ({ name: zipName(`${BATCH_TYPE_INFO[type].title}-${r.aspect.replace(":", "x")}`, "mp4", used), data: new Uint8Array(readFileSync(r.file)) }));
+    const entries: ZipEntry[] = BATCH_TYPES.map((type) => { const r = results.get(type)!; return { name: zipName(`${BATCH_TYPE_INFO[type].title}-${r.aspect.replace(":", "x")}`, "mp4", used), data: new Uint8Array(readFileSync(r.file)) }; });
     async function* gen() { for (const e of entries) yield e; }
     const reader = zipStream(gen()).getReader();
     const parts: Uint8Array[] = [];
@@ -207,7 +274,8 @@ print(json.dumps([[i.filename, i.file_size] for i in z.infolist()]))`, zipFile, 
     const listed = JSON.parse(py.stdout) as [string, number][];
     expect(listed.map((x) => x[0])).toEqual(entries.map((e) => e.name));
     expect(listed.map((x) => x[1])).toEqual(entries.map((e) => e.data.length));
-    expect(listed.map((x) => x[0])).toEqual(expect.arrayContaining(["Cinematic-Listing-Tour-16x9.mp4", "Just-Listed-Reel-9x16.mp4", "Open-House-Promotion-1x1.mp4"]));
+    expect(listed).toHaveLength(6);
+    expect(listed.map((x) => x[0])).toEqual(expect.arrayContaining(["Cinematic-Property-Tour-9x16.mp4", "Just-Listed-Reel-9x16.mp4", "Agent-Branded-Advertisement-9x16.mp4"]));
     // an extracted file is still a playable MP4
     expect(probe(join(extractDir, "Just-Listed-Reel-9x16.mp4")).height).toBe(1920);
   }, 120_000);

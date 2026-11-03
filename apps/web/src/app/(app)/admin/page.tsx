@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clapperboard, Palette, ScrollText, Settings, Users } from "lucide-react";
+import { Clapperboard, Palette, ScrollText, Settings, Users, Music } from "lucide-react";
 import { requirePermission } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -19,6 +19,7 @@ export default async function AdminPage() {
     { href: "/admin/projects", icon: Clapperboard, title: "Company videos", text: "Every project, who owns it and who it's shared with." },
     { href: "/admin/branding", icon: Palette, title: "Branding", text: "Logo, colors, fonts and the closing message on every video." },
     { href: "/admin/audit", icon: ScrollText, title: "Activity log", text: "Who changed what, and when." },
+    { href: "/admin/music", icon: Music, title: "Music library", text: "Licensed background music. Only tracks verified for commercial use are offered." },
     ...(can(ctx.profile.role, "settings.manage")
       ? [{ href: "/admin/settings", icon: Settings, title: "System settings", text: "AI services, budget and default limits." }]
       : []),

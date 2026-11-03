@@ -32,3 +32,11 @@ export function parseCamera(value: unknown): CameraSpec | null {
   const r = cameraSpecSchema.safeParse(value);
   return r.success ? r.data : null;
 }
+
+/** Playable links for project music and company music-library tracks. */
+export async function signMusicUrls(paths: string[], expiresIn = 4 * 3600): Promise<Record<string, string>> {
+  const lib = paths.filter((p) => p.split("/")[1] === "music");
+  const proj = paths.filter((p) => p.split("/")[1] !== "music");
+  const [a, b] = await Promise.all([signedUrlMap(BUCKETS.projectMedia, proj, expiresIn), signedUrlMap(BUCKETS.musicLibrary, lib, expiresIn)]);
+  return { ...a, ...b };
+}

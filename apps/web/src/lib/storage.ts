@@ -8,6 +8,7 @@ export const BUCKETS = {
   videoExports: "video-exports",
   projectMedia: "project-media",
   aiClips: "ai-clips",
+  musicLibrary: "music-library",
 } as const;
 export type BucketName = (typeof BUCKETS)[keyof typeof BUCKETS];
 

@@ -14,7 +14,7 @@ import {
   assignProjectSchema, brandKitSchema, createUserSchema, editUserSchema, fieldErrors, formDataToObject, orgSettingsSchema,
   unassignProjectSchema, userStatusSchema,
 } from "@/lib/validation";
-import { BUCKETS, isBrandLogoPathFor, isUuid } from "@/lib/storage";
+import { BUCKETS, cleanFileName, isBrandLogoPathFor, isUuid } from "@/lib/storage";
 
 /** Turns Supabase Auth sign-in off/on for an account (in addition to the database status). */
 async function setAuthBan(userId: string, banned: boolean) {
@@ -316,4 +316,75 @@ export async function testClaudeConnection(): Promise<ActionResult> {
     if (e instanceof Anthropic.APIError) return { ok: false, message: `Claude answered with an error (${e.status ?? "network"}).` };
     return { ok: false, message: "Couldn't reach Claude from the server." };
   }
+}
+
+/* ── Music library (admins) ──────────────────────────────────────────────── */
+
+const MUSIC_LICENSES = ["royalty_free", "licensed", "company_owned"] as const;
+const addTrackSchema = z.object({
+  path: z.string().max(300),
+  file_name: z.string().min(1).max(200),
+  mime_type: z.enum(["audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/wav", "audio/x-wav"]),
+  size_bytes: z.number().int().positive().max(25 * 1024 * 1024),
+  duration_seconds: z.number().positive().max(3600).nullable(),
+  title: z.string().trim().min(1, "Give the track a title.").max(120),
+  artist: z.string().trim().max(120).optional(),
+  mood: z.enum(["elegant", "calm", "upbeat", "warm", "inspiring"]),
+  license_type: z.enum(MUSIC_LICENSES),
+  license_details: z.string().trim().min(3, "Describe the licence (who granted it, for what use).").max(1000),
+  license_url: z.string().trim().url("Use a full link, or leave it empty.").max(500).optional().or(z.literal("")),
+  verified: z.boolean(),
+});
+
+/** Registers an uploaded track (the browser uploaded the file to the company's music folder). */
+export async function addMusicTrack(input: unknown): Promise<ActionResult> {
+  const auth = await authorizeAction("admin.access");
+  if (!auth.ok) return auth.result;
+  const parsed = addTrackSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Please check the track details.", fieldErrors: fieldErrors(parsed.error) };
+  const d = parsed.data;
+  const org = auth.ctx.organization.id;
+  if (!new RegExp(`^${org}/music/[0-9a-f-]{36}\\.(mp3|m4a|aac|wav)$`).test(d.path)) return { ok: false, message: "That upload isn't in the music library folder." };
+  const supabase = await createClient();
+  const { data: asset, error } = await supabase.from("media_assets").insert({
+    organization_id: org, uploaded_by: auth.ctx.userId, kind: "audio", bucket: BUCKETS.musicLibrary, storage_path: d.path,
+    file_name: cleanFileName(d.file_name), mime_type: d.mime_type, size_bytes: d.size_bytes, duration_seconds: d.duration_seconds,
+  }).select("id").single();
+  if (error || !asset) return { ok: false, message: "Only administrators can add music." };
+  const now = new Date().toISOString();
+  const { error: te } = await supabase.from("music_tracks").insert({
+    organization_id: org, asset_id: asset.id, title: d.title, artist: d.artist || null, mood: d.mood, license_type: d.license_type,
+    license_details: d.license_details, license_url: d.license_url || null,
+    commercial_use_verified: d.verified, verified_by: d.verified ? auth.ctx.userId : null, verified_at: d.verified ? now : null,
+  });
+  if (te) { await supabase.from("media_assets").delete().eq("id", asset.id); return { ok: false, message: "The track couldn't be saved." }; }
+  await createAdminClient().from("audit_log").insert({ organization_id: org, actor_id: auth.ctx.userId, action: "music.added", target_type: "media_asset", target_id: asset.id, metadata: { title: d.title, license_type: d.license_type, verified: d.verified } });
+  revalidatePath("/admin/music");
+  return { ok: true, message: `“${d.title}” added${d.verified ? " and cleared for use" : " — it won't be offered until its licence is verified"}.` };
+}
+
+export async function setMusicVerified(assetId: string, verified: boolean): Promise<ActionResult> {
+  const auth = await authorizeAction("admin.access");
+  if (!auth.ok) return auth.result;
+  if (!isUuid(assetId)) return { ok: false, message: "Track not found." };
+  const supabase = await createClient();
+  const { data } = await supabase.from("music_tracks").update({
+    commercial_use_verified: verified, verified_by: verified ? auth.ctx.userId : null, verified_at: verified ? new Date().toISOString() : null,
+  }).eq("asset_id", assetId).select("title");
+  if (!data?.length) return { ok: false, message: "Built-in tracks can't be changed; only administrators can verify." };
+  await createAdminClient().from("audit_log").insert({ organization_id: auth.ctx.organization.id, actor_id: auth.ctx.userId, action: verified ? "music.verified" : "music.unverified", target_type: "media_asset", target_id: assetId, metadata: {} });
+  revalidatePath("/admin/music");
+  return { ok: true };
+}
+
+export async function deleteMusicTrack(assetId: string): Promise<ActionResult> {
+  const auth = await authorizeAction("admin.access");
+  if (!auth.ok) return auth.result;
+  if (!isUuid(assetId)) return { ok: false, message: "Track not found." };
+  const supabase = await createClient();
+  const { data } = await supabase.from("media_assets").delete().eq("id", assetId).eq("bucket", BUCKETS.musicLibrary).select("storage_path");
+  if (!data?.length) return { ok: false, message: "This track can't be removed." };
+  await supabase.storage.from(BUCKETS.musicLibrary).remove([data[0]!.storage_path]);
+  revalidatePath("/admin/music");
+  return { ok: true };
 }

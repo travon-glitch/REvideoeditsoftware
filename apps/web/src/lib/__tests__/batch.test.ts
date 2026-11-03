@@ -28,30 +28,52 @@ describe("Generate 6 Videos", () => {
     expect(bare.notes.join(" ")).toMatch(/no date is made up/);
   });
 
-  it("builds six valid, renderable storyboards from 20 photos", () => {
+  it("builds six valid, renderable storyboards from 20 photos — vertical 1080p by default", () => {
     const ph = photos(20);
     const batch = buildBatch({ listing: home(), photos: ph, brand });
     expect(batch.map((b) => b.type)).toEqual([...BATCH_TYPES]);
+    expect(batch.map((b) => BATCH_TYPE_INFO[b.type].title)).toEqual([
+      "Cinematic Property Tour", "Just Listed Reel", "Luxury Highlights", "Open House Promotion", "Short Social Media Reel", "Agent-Branded Advertisement",
+    ]);
     for (const { type, plan } of batch) {
-      expect(plan.aspect).toBe(BATCH_TYPE_INFO[type].aspect);
-      const doc = composeDocument({ plan, title: type, photos: ph, music: [], brand: null });
+      expect(plan.aspect, type).toBe("9:16");
+      const doc = composeDocument({ plan, title: type, photos: ph, music: [], brand: null }) as { width: number; height: number };
+      expect([doc.width, doc.height]).toEqual([1080, 1920]);
       expect(validateFableCutDocument(doc).ok, type).toBe(true);
       const rows = ph.map((p) => ({ id: p.id, organization_id: org, listing_id: listingId, project_id: null, kind: "photo", bucket: "listing-media", storage_path: p.storage_path }));
       expect(checkRenderDocument(doc, allowedAssetsFor({ id: randomUUID(), organization_id: org, listing_id: listingId, title: "t" }, rows)).length).toBeGreaterThan(0);
     }
+    expect(buildBatch({ listing: home(), photos: ph, brand, aspect: "16:9" }).every((b) => b.plan.aspect === "16:9")).toBe(true);
   });
 
-  it("gives every video a meaningfully different structure, hook and opening photo", () => {
+  it("every video shows the address and the price", () => {
+    for (const { type, plan } of buildBatch({ listing: home(), photos: photos(20), brand })) {
+      const all = plan.texts.map((t) => t.text).join("\n");
+      expect(all, type).toContain("742 Evergreen Terrace");
+      expect(all, type).toContain("$525,000");
+    }
+  });
+
+  it("gives every video different pacing, opening scene and emphasis", () => {
     const batch = buildBatch({ listing: home(), photos: photos(20), brand });
     expect(new Set(batch.map((b) => structureOf(b.plan))).size).toBe(6);
+    expect(new Set(batch.map((b) => b.plan.scenes[0]!.assetId)).size).toBe(6);       // six different openers
     const hook = (i: number) => batch[i]!.plan.texts.find((x) => resolveScene(batch[i]!.plan, x.sceneId)?.id === batch[i]!.plan.scenes[0]!.id)?.text;
     expect(new Set(batch.map((_, i) => hook(i))).size).toBe(6);
-    expect(new Set(batch.map((b) => b.plan.scenes[0]!.assetId)).size).toBeGreaterThanOrEqual(4);
+    const pace = batch.map((b) => totalDuration(b.plan) / b.plan.scenes.length);
+    expect(new Set(pace.map((p) => p.toFixed(1))).size).toBeGreaterThanOrEqual(5);
     const len = Object.fromEntries(batch.map((b) => [b.type, totalDuration(b.plan)]));
     expect(len["just-listed-reel"]).toBe(15);
-    expect(len["cinematic-tour"]).toBeGreaterThan(45);
+    expect(len["social-reel"]).toBe(12);
+    expect(len["cinematic-tour"]).toBeGreaterThan(40);
     expect(new Set(batch.map((b) => b.plan.transition)).size).toBeGreaterThanOrEqual(5);
-    expect(new Set(batch.map((b) => b.plan.aspect))).toEqual(new Set(["16:9", "9:16", "1:1"]));
+  });
+
+  it("adds the chosen music and the brand logo", () => {
+    const music = randomUUID(), logo = randomUUID();
+    const plan = buildBatchPlan({ type: "luxury-highlights", listing: home(), photos: photos(10), brand, musicAssetId: music, logoAssetId: logo });
+    expect(plan.music).toMatchObject({ assetId: music, fadeOut: true });
+    expect(plan.logoAssetId).toBe(logo);
   });
 
   it("uses only facts from the listing", () => {
@@ -59,15 +81,15 @@ describe("Generate 6 Videos", () => {
     const text = plan.texts.map((x) => x.text).join("\n");
     expect(text).not.toMatch(/\$|OPEN HOUSE/);
     expect(text).toMatch(/Ask us for a showing/);
-    const hl = buildBatchPlan({ type: "highlights", listing: home(), photos: photos(10), brand });
-    expect(hl.texts.map((x) => x.text)).toEqual(expect.arrayContaining(["1  ·  4 bedrooms", "2  ·  2.5 bathrooms"]));
+    const hl = buildBatchPlan({ type: "luxury-highlights", listing: home(), photos: photos(10), brand });
+    expect(hl.texts.map((x) => x.text)).toEqual(expect.arrayContaining(["4 bedrooms", "2.5 bathrooms", "2,150 sq ft"]));
   });
 
   it("works with few photos, keeps saved Camera Studio moves, and regenerates differently", () => {
     const few = photos(5);
     for (const type of BATCH_TYPES) expect(buildBatchPlan({ type, listing: home(), photos: few, brand }).scenes.length).toBeGreaterThan(0);
     const ph = photos(20);
-    ph[0] = { ...ph[0]!, camera: { ...buildBatchPlan({ type: "luxury", listing: home(), photos: ph, brand }).scenes[0]!.camera!, move: "zoom" } } as typeof ph[0];
+    ph[0] = { ...ph[0]!, camera: { ...buildBatchPlan({ type: "luxury-highlights", listing: home(), photos: ph, brand }).scenes[0]!.camera!, move: "zoom" } } as typeof ph[0];
     const tour = buildBatchPlan({ type: "cinematic-tour", listing: home(), photos: ph, brand });
     expect(tour.scenes[0]!.camera!.move).toBe("zoom");
     const a = buildBatchPlan({ type: "just-listed-reel", listing: home(), photos: ph, brand, variation: 0 });
