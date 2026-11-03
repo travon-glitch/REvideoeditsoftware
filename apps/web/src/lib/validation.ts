@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AGENT_LAYOUTS, BRAND_FONTS, INTRO_STYLES, OUTRO_STYLES } from "@/lib/video/plan";
 import { normalizeSetupCode } from "@/lib/setup-code";
 import { ROLES } from "@/lib/auth/roles";
 import { PROPERTY_TYPES } from "@/lib/listings";
@@ -108,6 +109,14 @@ export const listingDraftSchema = z.object({
   status: z.enum(LISTING_STATUSES).optional().default("for_sale"),
   agent_name: optionalText(120),
   brokerage: optionalText(160),
+  /** Stage 11: the agent profile whose details and headshot appear on this listing's videos. */
+  agent_profile_id: z.string().optional().transform((v, ctx) => {
+    if (!v) return null;
+    if (!/^[0-9a-f-]{36}$/i.test(v)) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Choose an agent from the list." }); return z.NEVER; }
+    return v;
+  }),
+  /** The earlier, higher price (for Price Reduced videos). */
+  previous_price: optionalNumber({ min: 0, max: 1_000_000_000 }),
   contact_phone: z.string().trim().max(40).optional().transform((v, ctx) => {
     if (!v) return null;
     if (!/^[+()\-.\s\d]{7,40}$/.test(v)) {
@@ -173,10 +182,25 @@ export const brandKitSchema = z.object({
   primary_color: hexColor,
   secondary_color: hexColor,
   accent_color: hexColor,
-  heading_font: trimmed(60).min(1),
-  body_font: trimmed(60).min(1),
+  heading_font: z.enum(BRAND_FONTS, { errorMap: () => ({ message: "Choose a font from the list." }) }),
+  body_font: z.enum(BRAND_FONTS, { errorMap: () => ({ message: "Choose a font from the list." }) }),
   outro_text: optionalText(280),
   disclaimer: optionalText(500),
+  // Stage 11
+  brokerage_name: optionalText(160),
+  brokerage_license: optionalText(80),
+  intro_style: z.enum(INTRO_STYLES).default("logo-reveal"),
+  outro_style: z.enum(OUTRO_STYLES).default("agent-card"),
+  agent_layout: z.enum(AGENT_LAYOUTS).default("photo-left"),
+  disclosure_required: z.union([z.literal("on"), z.literal("true"), z.literal(""), z.undefined()]).transform((v) => v === "on" || v === "true"),
+  music_mood: z.enum(["elegant", "calm", "upbeat", "warm", "inspiring"]).default("calm"),
+  music_follow_template: z.union([z.literal("on"), z.literal("true"), z.literal(""), z.undefined()]).transform((v) => v === "on" || v === "true"),
+  music_asset_id: z.string().optional().transform((v) => (v && /^[0-9a-f-]{36}$/i.test(v) ? v : null)),
+  music_volume: z.coerce.number().min(0).max(1).default(0.65),
+}).superRefine((d, ctx) => {
+  if (d.disclosure_required && (!d.disclaimer || d.disclaimer.length < 5)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Write the disclosure text, or untick 'required'.", path: ["disclaimer"] });
+  }
 });
 
 /** "" → null (no limit); otherwise a whole number in range. */

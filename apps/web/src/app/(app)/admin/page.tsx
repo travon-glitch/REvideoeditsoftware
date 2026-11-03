@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clapperboard, Palette, ScrollText, Settings, Users, Music } from "lucide-react";
+import { Clapperboard, IdCard, LayoutTemplate, Palette, ScrollText, Settings, Users, Music } from "lucide-react";
 import { requirePermission } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -17,7 +17,11 @@ export default async function AdminPage() {
   const cards = [
     { href: "/admin/users", icon: Users, title: "Users", text: `${active ?? 0} active of ${members ?? 0} people. Create accounts, set roles and assign projects.` },
     { href: "/admin/projects", icon: Clapperboard, title: "Company videos", text: "Every project, who owns it and who it's shared with." },
-    { href: "/admin/branding", icon: Palette, title: "Branding", text: "Logo, colors, fonts and the closing message on every video." },
+    ...(can(ctx.profile.role, "branding.manage")
+      ? [{ href: "/admin/branding", icon: Palette, title: "Brand kit", text: "Logos, colours, fonts, intro and outro animation, agent card, disclosures and music." }]
+      : []),
+    { href: "/admin/templates", icon: LayoutTemplate, title: "Templates", text: "Create, edit, approve and disable templates, set defaults and branding rules." },
+    { href: "/admin/agents", icon: IdCard, title: "Agent profiles", text: "Agent names, phone numbers, emails, headshots and brokerage details for videos." },
     { href: "/admin/audit", icon: ScrollText, title: "Activity log", text: "Who changed what, and when." },
     { href: "/admin/music", icon: Music, title: "Music library", text: "Licensed background music. Only tracks verified for commercial use are offered." },
     ...(can(ctx.profile.role, "settings.manage")

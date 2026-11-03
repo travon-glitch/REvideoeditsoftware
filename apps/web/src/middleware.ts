@@ -82,7 +82,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // everything except Next internals and static files
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
+    // everything except Next internals and static files (incl. the public template preview clips)
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|templates/[a-z-]+\\.mp4$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
   ],
 };

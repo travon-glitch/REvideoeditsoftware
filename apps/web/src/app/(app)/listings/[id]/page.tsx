@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Images, Plus, Layers, Sparkles } from "lucide-react";
+import { ArrowLeft, Images, Plus, Layers, LayoutTemplate, Sparkles } from "lucide-react";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/auth/roles";
@@ -29,9 +29,10 @@ export default async function ListingPage({
   // RLS returns the listing only to its owner, people it's assigned to (directly or via a project), and admins.
   const { data: listing } = await supabase.from("listings").select("*").eq("id", id).maybeSingle();
   if (!listing) notFound();
-  const [{ data: photos }, { data: access }] = await Promise.all([
+  const [{ data: photos }, { data: access }, { data: agents }] = await Promise.all([
     supabase.from("media_assets").select("id,storage_path,thumbnail_path,file_name").eq("listing_id", id).eq("kind", "photo").order("sort_order"),
     supabase.rpc("listing_access", { p_listing: id }),
+    supabase.from("agent_profiles").select("id,name").eq("is_active", true).order("name"),
   ]);
   // Short-lived signed links, created as this person (storage RLS applies).
   const urls = await signedUrlMap(BUCKETS.listingMedia, (photos ?? []).flatMap((p) => [p.storage_path, p.thumbnail_path ?? ""]), 3600);
@@ -51,6 +52,7 @@ export default async function ListingPage({
             ? (
               <div className="flex flex-wrap gap-2">
                 {directorOn ? <Button asChild size="lg" className="bg-brand text-white hover:bg-brand/90"><Link href={`/create?listing=${listing.id}`}><Sparkles aria-hidden="true" />Create My Video Automatically</Link></Button> : null}
+                <Button asChild size="lg" variant="outline"><Link href={`/templates?listing=${listing.id}`}><LayoutTemplate aria-hidden="true" />Use a Template</Link></Button>
                 <Button asChild size="lg" variant="outline"><Link href={`/generate?listing=${listing.id}`}><Layers aria-hidden="true" />Generate 6 Videos</Link></Button>
               </div>
             )
@@ -63,6 +65,7 @@ export default async function ListingPage({
           advanced={ctx.profile.ui_mode === "advanced"}
           canDelete={listing.created_by === ctx.userId || ctx.profile.role === "super_admin"}
           canCreateVideo={can(ctx.profile.role, "videos.create")}
+          agents={agents ?? []}
         />
       </div>
     );

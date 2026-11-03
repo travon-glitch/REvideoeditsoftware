@@ -60,9 +60,8 @@ describe("photo thumbnails", () => {
 });
 
 describe("Easy Mode styles", () => {
-  it("are the six built-in templates, in order", async () => {
-    const r = await alice((tx) => tx.query<{ slug: string; name: string }>(
-      `select slug, name from public.video_templates where is_active and organization_id is null order by sort_order`));
-    expect(r.rows.map((t) => t.name)).toEqual(["Luxury Cinematic", "Modern", "Just Listed", "Open House", "Social Media Reel", "Property Highlights"]);
+  it("the old global style rows are retired (Easy Mode styles live in code; templates are per company since Stage 11)", async () => {
+    const r = await alice((tx) => tx.query(`select 1 from public.video_templates where organization_id is null`));
+    expect(r.rows).toEqual([]);
   });
 });

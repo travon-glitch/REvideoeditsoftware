@@ -53,9 +53,9 @@ beforeAll(async () => {
 });
 
 describe("migration", () => {
-  it("creates the built-in templates and private buckets", async () => {
+  it("retires the old global styles (Stage 11: each company has its own templates) and creates private buckets", async () => {
     const t = await db.query<{ slug: string }>(`select slug from public.video_templates where organization_id is null and is_active order by sort_order`);
-    expect(t.rows.map((r) => r.slug)).toEqual(["luxury", "modern", "just-listed", "open-house", "social-reel", "highlights"]);
+    expect(t.rows).toEqual([]);
     const b = await db.query<{ id: string; public: boolean }>(`select id, public from storage.buckets order by id`);
     expect(b.rows).toEqual([
       { id: "ai-clips", public: false }, { id: "brand-assets", public: false }, { id: "listing-media", public: false }, { id: "music-library", public: false },
@@ -247,11 +247,13 @@ describe("roles and permissions", () => {
     await rejects(asUser(ids.editor, (tx) => tx.query(`update public.generation_jobs set status = 'succeeded'`)), /permission denied/);
   });
 
-  it("only admins change branding", async () => {
+  it("only the Super Admin changes the brand kit (Stage 11)", async () => {
     const editor = await asUser(ids.editor, (tx) => tx.query(`update public.brand_kits set primary_color = '#000000'`));
     expect(editor.affectedRows).toBe(0);
     const admin = await asUser(ids.admin, (tx) => tx.query(`update public.brand_kits set primary_color = '#112233'`));
-    expect(admin.affectedRows).toBe(1);
+    expect(admin.affectedRows).toBe(0);
+    const owner = await asUser(ids.superAdmin, (tx) => tx.query(`update public.brand_kits set primary_color = '#112233'`));
+    expect(owner.affectedRows).toBe(1);
   });
 });
 

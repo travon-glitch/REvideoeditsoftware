@@ -15,6 +15,7 @@ import {
   unassignProjectSchema, userStatusSchema,
 } from "@/lib/validation";
 import { BUCKETS, cleanFileName, isBrandLogoPathFor, isUuid } from "@/lib/storage";
+import { ensureBrandImage } from "@/lib/music";
 
 /** Turns Supabase Auth sign-in off/on for an account (in addition to the database status). */
 async function setAuthBan(userId: string, banned: boolean) {
@@ -212,12 +213,12 @@ export async function saveBrandKit(_prev: ActionResult | null, formData: FormDat
   return { ok: true, message: "Branding saved. New videos will use it." };
 }
 
-/** Called after the browser uploaded a logo to private storage. */
-export async function setBrandLogo(path: string): Promise<ActionResult> {
+/** Called after the browser uploaded a logo to private storage (company logo or brokerage logo; Super Admin). */
+export async function setBrandLogo(path: string, which: "logo" | "brokerage" = "logo"): Promise<ActionResult> {
   const auth = await authorizeAction("branding.manage");
   if (!auth.ok) return auth.result;
   const kit = auth.ctx.brandKit;
-  if (!kit) return { ok: false, message: "Save the branding form first." };
+  if (!kit) return { ok: false, message: "Save the brand kit form first." };
   if (!isBrandLogoPathFor(path, auth.ctx.organization.id)) return { ok: false, message: "Upload location was not valid." };
 
   const supabase = await createClient();
@@ -225,11 +226,33 @@ export async function setBrandLogo(path: string): Promise<ActionResult> {
   const { data: objects } = await supabase.storage.from(BUCKETS.brandAssets).list(folder, { limit: 1000 });
   if (!(objects ?? []).some((o) => `${folder}/${o.name}` === path)) return { ok: false, message: "The logo didn't finish uploading." };
 
-  const { error } = await supabase.from("brand_kits").update({ logo_path: path }).eq("id", kit.id);
+  const column = which === "brokerage" ? "brokerage_logo_path" : "logo_path";
+  const old = which === "brokerage" ? kit.brokerage_logo_path : kit.logo_path;
+  const { error } = await supabase.from("brand_kits").update(column === "logo_path" ? { logo_path: path } : { brokerage_logo_path: path }).eq("id", kit.id);
   if (error) return { ok: false, message: "We couldn't save the logo." };
-  if (kit.logo_path && kit.logo_path !== path) await supabase.storage.from(BUCKETS.brandAssets).remove([kit.logo_path]);
+  // register it with its real size, so videos can use it right away
+  await ensureBrandImage(auth.ctx.organization.id, path, "logo");
+  // the old file stays if earlier videos use it
+  if (old && old !== path) {
+    const { data: used } = await supabase.from("media_assets").select("id").eq("bucket", BUCKETS.brandAssets).eq("storage_path", old).limit(1);
+    if (!used?.length) await supabase.storage.from(BUCKETS.brandAssets).remove([old]);
+  }
   revalidatePath("/", "layout");
-  return { ok: true, message: "Logo updated." };
+  return { ok: true, message: which === "brokerage" ? "Brokerage logo updated." : "Logo updated." };
+}
+
+/** Administrators: branding requirements applied to every video (checked again in the database function). */
+export async function saveBrandRules(input: { requireLogo: boolean; requireDisclosure: boolean; requireAgentCard: boolean; lockFonts: boolean; lockColors: boolean }): Promise<ActionResult> {
+  const auth = await authorizeAction("templates.manage");
+  if (!auth.ok) return auth.result;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_brand_rules", {
+    p_require_logo: !!input.requireLogo, p_require_disclosure: !!input.requireDisclosure, p_require_agent_card: !!input.requireAgentCard,
+    p_lock_fonts: !!input.lockFonts, p_lock_colors: !!input.lockColors,
+  });
+  if (error) return { ok: false, message: friendly(error, "We couldn't save the branding rules.") };
+  revalidatePath("/admin/templates");
+  return { ok: true, message: "Branding rules saved. Every new or re-rendered video follows them." };
 }
 
 /** Super Admin: allow or stop one person from using Generate 6 Videos (checked again in the database). */

@@ -48,7 +48,7 @@ export interface JobDeps {
   timeoutMs?: number;
 }
 
-const KIND_FOR_ASSET: Record<string, AllowedAsset["kind"]> = { photo: "image", audio: "audio", video: "video", ai_clip: "video", logo: "image" };
+const KIND_FOR_ASSET: Record<string, AllowedAsset["kind"]> = { photo: "image", audio: "audio", video: "video", ai_clip: "video", logo: "image", headshot: "image" };
 
 /**
  * Only files of this project's company that belong to this project's listing
@@ -63,7 +63,7 @@ export function allowedAssetsFor(project: ProjectInfo, rows: AssetRow[]): Allowe
       || (a.bucket === "ai-clips" && a.kind === "ai_clip" && !!project.listing_id && a.listing_id === project.listing_id)
       // the company's own music library and brand logo
       || (a.bucket === "music-library" && a.kind === "audio")
-      || (a.bucket === "brand-assets" && a.kind === "logo")
+      || (a.bucket === "brand-assets" && (a.kind === "logo" || a.kind === "headshot"))
       || (a.bucket === "project-media" && a.kind === "audio" && a.project_id === project.id))
     .map((a) => ({ id: a.id, bucket: a.bucket, storagePath: a.storage_path, kind: KIND_FOR_ASSET[a.kind]! }));
 }

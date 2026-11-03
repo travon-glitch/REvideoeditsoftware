@@ -8,7 +8,7 @@ import type { Role, UserStatus } from "@/lib/auth/roles";
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type ListingStatus = "coming_soon" | "for_sale" | "open_house" | "pending" | "sold" | "for_rent";
-export type AssetKind = "photo" | "video" | "audio" | "logo" | "ai_clip" | "render";
+export type AssetKind = "photo" | "video" | "audio" | "logo" | "ai_clip" | "render" | "headshot";
 export type VideoStatus =
   | "draft" | "generating" | "ready_for_review" | "approved" | "rendering" | "completed" | "failed" | "archived";
 export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
@@ -34,6 +34,7 @@ export type OrganizationSettingsRow = {
   viewers_can_download_by_default: boolean; updated_by: string | null; updated_at: string;
   max_batch_size: number; concurrent_render_limit: number; daily_video_limit: number | null;
   claude_enabled: boolean; claude_model: string; claude_monthly_run_limit: number | null; claude_daily_runs_per_user: number | null;
+  require_logo: boolean; require_disclosure: boolean; require_agent_card: boolean; lock_brand_fonts: boolean; lock_brand_colors: boolean;
 };
 export type DirectorRunRow = {
   id: string; organization_id: string; listing_id: string | null; project_id: string | null; created_by: string | null;
@@ -48,6 +49,15 @@ export type BrandKitRow = {
   tagline: string | null; primary_color: string; secondary_color: string; accent_color: string;
   heading_font: string; body_font: string; logo_path: string | null; outro_text: string | null;
   disclaimer: string | null; created_by: string | null; created_at: string; updated_at: string;
+  brokerage_name: string | null; brokerage_license: string | null; brokerage_logo_path: string | null;
+  intro_style: "none" | "logo-reveal" | "bar-wipe" | "title-card"; outro_style: "none" | "agent-card" | "logo-end" | "contact-bar";
+  agent_layout: "photo-left" | "centered" | "minimal"; disclosure_required: boolean;
+  music_mood: "elegant" | "calm" | "upbeat" | "warm" | "inspiring"; music_follow_template: boolean; music_asset_id: string | null; music_volume: number;
+};
+export type AgentProfileRow = {
+  id: string; organization_id: string; user_id: string | null; name: string; title: string | null; phone: string | null;
+  email: string | null; brokerage: string | null; license: string | null; headshot_asset_id: string | null; is_active: boolean;
+  created_by: string | null; created_at: string; updated_at: string;
 };
 export type ListingRow = {
   id: string; organization_id: string; created_by: string | null; address_line: string; city: string | null;
@@ -57,6 +67,7 @@ export type ListingRow = {
   workflow_state: "draft" | "ready"; property_type: string | null; agent_name: string | null; brokerage: string | null;
   contact_phone: string | null; contact_email: string | null; open_house_date: string | null;
   open_house_start: string | null; open_house_end: string | null; cover_asset_id: string | null; updated_by: string | null;
+  agent_profile_id: string | null; previous_price: number | null;
 };
 export type ListingMemberRow = {
   listing_id: string; user_id: string; organization_id: string; access: "viewer" | "editor";
@@ -74,6 +85,8 @@ export type VideoTemplateRow = {
   id: string; organization_id: string | null; slug: string; name: string; description: string;
   aspect_ratios: string[]; style: Json; document: Json | null; is_active: boolean; sort_order: number;
   created_at: string; updated_at: string;
+  builtin_key: string | null; status: "draft" | "approved" | "disabled"; usage: string; default_for: ListingStatus[];
+  created_by: string | null; approved_by: string | null; approved_at: string | null;
 };
 export type VideoProjectRow = {
   id: string; organization_id: string; listing_id: string | null; template_id: string | null;
@@ -138,6 +151,7 @@ export type Database = {
         "ai_enabled" | "monthly_ai_budget_cents" | "default_max_videos_per_month" | "default_max_ai_generations_per_month" | "viewers_can_download_by_default" | "updated_by"
         | "max_batch_size" | "concurrent_render_limit" | "daily_video_limit"
         | "claude_enabled" | "claude_model" | "claude_monthly_run_limit" | "claude_daily_runs_per_user">;
+      agent_profiles: Table<AgentProfileRow, "organization_id" | "name">;
       director_runs: Table<DirectorRunRow, "organization_id" | "style" | "model" | "photo_count">;
       organization_secrets: Table<OrganizationSecretRow, "organization_id" | "name" | "ciphertext" | "last4">;
       video_batches: Table<VideoBatchRow, "organization_id" | "size">;
@@ -186,6 +200,9 @@ export type Database = {
       director_available: { Args: Record<PropertyKey, never>; Returns: boolean };
       start_video_batch: { Args: { p_listing_id: string; p_size: number; p_analysis?: Json; p_aspect?: string; p_planner?: string }; Returns: VideoBatchRow };
       my_generation_allowance: { Args: Record<PropertyKey, never>; Returns: Json };
+      my_brand_rules: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_set_brand_rules: { Args: { p_require_logo: boolean; p_require_disclosure: boolean; p_require_agent_card: boolean; p_lock_fonts: boolean; p_lock_colors: boolean }; Returns: undefined };
+      admin_set_template_default: { Args: { p_template: string; p_statuses: ListingStatus[] }; Returns: undefined };
       admin_set_batch_permission: { Args: { p_user_id: string; p_allowed: boolean }; Returns: ProfileRow };
       review_ai_clip: { Args: { p_asset: string; p_decision: "approved" | "problem"; p_note?: string | null }; Returns: Json };
       bootstrap_is_complete: { Args: Record<PropertyKey, never>; Returns: boolean };

@@ -20,7 +20,9 @@ export interface RenderFile {
 
 const SAFE_FILE = /^[0-9a-f-]{36}\.(jpg|jpeg|png|webp|heic|heif|mp3|m4a|aac|wav|mp4)$/i;
 const KIND_OF: Record<string, AllowedAsset["kind"]> = { image: "image", audio: "audio", video: "video" };
-const ALLOWED_CLIP_KINDS = new Set(["image", "audio", "video", "text"]);
+/** "shape" = vector shape layers (drawn by FableCut, no files). */
+const ALLOWED_CLIP_KINDS = new Set(["image", "audio", "video", "text", "shape"]);
+const NO_MEDIA_KINDS = new Set(["text", "shape"]);
 
 export class RenderDocumentError extends Error {}
 
@@ -59,7 +61,9 @@ export function checkRenderDocument(doc: unknown, allowed: AllowedAsset[]): Rend
   let end = 0;
   for (const c of d.clips as Record<string, unknown>[]) {
     if (!ALLOWED_CLIP_KINDS.has(String(c.kind))) throw new RenderDocumentError(`Clip kind ${String(c.kind)} is not rendered by the worker`);
-    if (c.kind !== "text" && !mediaIds.has(String(c.mediaId))) throw new RenderDocumentError(`Clip ${String(c.id)} uses unknown media`);
+    if (NO_MEDIA_KINDS.has(String(c.kind))) {
+      if (c.mediaId != null) throw new RenderDocumentError(`Clip ${String(c.id)} can't use media`);
+    } else if (!mediaIds.has(String(c.mediaId))) throw new RenderDocumentError(`Clip ${String(c.id)} uses unknown media`);
     const start = Number(c.start), duration = Number(c.duration);
     if (!(start >= 0) || !(duration > 0)) throw new RenderDocumentError(`Clip ${String(c.id)} has a bad time`);
     end = Math.max(end, start + duration);

@@ -16,10 +16,10 @@ import { PhotoManager, type ManagedPhoto } from "./photo-manager";
 const STEPS = ["Property Information", "Upload Photos", "Save and Continue"] as const;
 
 export function ListingWorkspace({
-  listing, photos, orgId, initialStep, advanced, canDelete, canCreateVideo,
+  listing, photos, orgId, initialStep, advanced, canDelete, canCreateVideo, agents = [],
 }: {
   listing: ListingRow; photos: ManagedPhoto[]; orgId: string; initialStep: number; advanced: boolean;
-  canDelete: boolean; canCreateVideo: boolean;
+  canDelete: boolean; canCreateVideo: boolean; agents?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [step, setStep] = useState(initialStep);
@@ -70,7 +70,7 @@ export function ListingWorkspace({
       <Card>
         <CardContent className="pt-6">
           {step === 0 ? (
-            <PropertyForm ref={formRef} listing={listing} advanced={advanced} onSaveState={onSaveState} />
+            <PropertyForm ref={formRef} listing={listing} advanced={advanced} onSaveState={onSaveState} agents={agents} />
           ) : null}
           {step === 1 ? (
             <PhotoManager orgId={orgId} listingId={listing.id} photos={photos} coverId={listing.cover_asset_id} />

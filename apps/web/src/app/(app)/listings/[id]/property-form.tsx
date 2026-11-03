@@ -18,7 +18,9 @@ const AUTOSAVE_MS = 1200;
 /** Property Information — saves automatically a moment after each change. Nothing is required for a draft. */
 export const PropertyForm = forwardRef<PropertyFormHandle, {
   listing: ListingRow; advanced: boolean; onSaveState: (s: SaveState) => void;
-}>(function PropertyForm({ listing, advanced, onSaveState }, ref) {
+  /** Agent profiles of the company (Stage 11). */
+  agents?: { id: string; name: string }[];
+}>(function PropertyForm({ listing, advanced, onSaveState, agents = [] }, ref) {
   const formRef = useRef<HTMLFormElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirty = useRef(false);
@@ -105,6 +107,9 @@ export const PropertyForm = forwardRef<PropertyFormHandle, {
         <Field className="sm:col-span-3" label="Listing price" htmlFor="price" hint="For example 525,000" error={e("price")}>
           <Input name="price" inputMode="decimal" defaultValue={v("price")} />
         </Field>
+        <Field className="sm:col-span-3" label="Previous price" htmlFor="previous_price" optional hint="Only if the price was lowered — used by Price Reduced videos" error={e("previous_price")}>
+          <Input name="previous_price" inputMode="decimal" defaultValue={v("previous_price")} />
+        </Field>
         <Field className="sm:col-span-2" label="Bedrooms" htmlFor="bedrooms" error={e("bedrooms")}>
           <Input name="bedrooms" inputMode="decimal" defaultValue={v("bedrooms")} />
         </Field>
@@ -138,6 +143,12 @@ export const PropertyForm = forwardRef<PropertyFormHandle, {
 
       <fieldset className="grid gap-5 sm:grid-cols-2">
         <legend className="mb-3 text-lg font-semibold">Agent and contact</legend>
+        <Field className="sm:col-span-2" label="Agent on the videos" htmlFor="agent_profile_id" hint="Their name, phone, email, photo and brokerage are added to this listing's videos automatically." error={e("agent_profile_id")}>
+          <NativeSelect name="agent_profile_id" defaultValue={listing.agent_profile_id ?? ""}>
+            <option value="">No agent profile — use the details below</option>
+            {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </NativeSelect>
+        </Field>
         <Field label="Agent name" htmlFor="agent_name" error={e("agent_name")}>
           <Input name="agent_name" defaultValue={v("agent_name")} autoComplete="name" />
         </Field>

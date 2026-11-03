@@ -11,6 +11,7 @@
 import { z } from "zod";
 import { CAMERA_MOVES, cameraKeyframes, getMove, kenBurnsKeyframes, type CameraChannels } from "@lvs/camera-presets";
 import { cameraSpecSchema } from "./camera";
+import { brandLayerClips, type BrandImage } from "./brand-layers";
 
 export const ASPECTS = ["16:9", "9:16", "1:1"] as const;
 export type Aspect = (typeof ASPECTS)[number];
@@ -40,6 +41,75 @@ export const TEXT_STYLE_LABELS: Record<TextStyle, string> = { title: "Big title"
 
 export const TEXT_POSITIONS = ["top", "center", "bottom"] as const;
 export type TextPosition = (typeof TEXT_POSITIONS)[number];
+
+/* ── Template look and branding layers (Stage 11) ─────────────────────── */
+
+/** Fonts bundled with the renderer (no network needed to draw them). */
+export const BRAND_FONTS = [
+  "Montserrat", "Inter", "Playfair Display", "Poppins", "Lato", "Roboto", "Oswald", "Bebas Neue", "Anton",
+  "Archivo Black", "DM Sans", "Barlow", "Rubik", "Teko", "Abril Fatface",
+] as const;
+export type BrandFont = (typeof BRAND_FONTS)[number];
+/** FableCut text animations used by templates. */
+export const TEXT_ANIMS = ["none", "rise-mask", "clip-reveal", "zoom-in", "word-slide", "word-pop", "letter-pop", "typewriter"] as const;
+export type TextAnim = (typeof TEXT_ANIMS)[number];
+/** FableCut photo looks used by templates. */
+export const PHOTO_FILTERS = ["none", "cinematic", "warm", "cold", "pop", "dreamy", "sunset", "midnight", "faded"] as const;
+export type PhotoFilter = (typeof PHOTO_FILTERS)[number];
+export const INTRO_STYLES = ["none", "logo-reveal", "bar-wipe", "title-card"] as const;
+export type IntroStyle = (typeof INTRO_STYLES)[number];
+export const OUTRO_STYLES = ["none", "agent-card", "logo-end", "contact-bar"] as const;
+export type OutroStyle = (typeof OUTRO_STYLES)[number];
+export const AGENT_LAYOUTS = ["photo-left", "centered", "minimal"] as const;
+export type AgentLayout = (typeof AGENT_LAYOUTS)[number];
+
+const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+const line = (max: number) => z.string().trim().max(max);
+
+export const lookSchema = z.object({
+  /** The template this look came from. */
+  template: z.string().max(48),
+  headingFont: z.enum(BRAND_FONTS),
+  bodyFont: z.enum(BRAND_FONTS),
+  titleAnim: z.enum(TEXT_ANIMS),
+  captionAnim: z.enum(TEXT_ANIMS),
+  bannerAnim: z.enum(TEXT_ANIMS),
+  uppercase: z.boolean(),
+  letterSpacing: z.number().min(0).max(24),
+  /** Banner / bar colour, panel colour behind cards, text colour. */
+  accent: hex,
+  panel: hex,
+  text: hex,
+  filter: z.enum(PHOTO_FILTERS),
+  /** Cinema bars top and bottom. */
+  letterbox: z.boolean().optional(),
+});
+export type PlanLook = z.infer<typeof lookSchema>;
+
+export const agentCardSchema = z.object({
+  name: line(120).min(1),
+  title: line(80).optional(),
+  phone: line(40).optional(),
+  email: line(160).optional(),
+  brokerage: line(160).optional(),
+  license: line(60).optional(),
+  headshotAssetId: z.string().uuid().optional(),
+  layout: z.enum(AGENT_LAYOUTS),
+});
+export type AgentCard = z.infer<typeof agentCardSchema>;
+
+export const brandingSchema = z.object({
+  intro: z.object({ style: z.enum(INTRO_STYLES), seconds: z.number().min(1).max(4), title: line(80).optional() }),
+  outro: z.object({ style: z.enum(OUTRO_STYLES), seconds: z.number().min(2).max(8) }),
+  agent: agentCardSchema.nullable(),
+  companyName: line(120).optional(),
+  /** Company logo used by the intro / outro animation. */
+  logoAssetId: z.string().uuid().optional(),
+  brokerageLogoAssetId: z.string().uuid().optional(),
+  /** Required brokerage disclosure, shown small on the last scene. */
+  disclosure: line(500).optional(),
+});
+export type PlanBranding = z.infer<typeof brandingSchema>;
 
 export const STILL = "still";
 export const SCENE_MOVES = [STILL, ...CAMERA_MOVES.map((m) => m.id)] as const;
@@ -78,6 +148,8 @@ export const textSchema = z.object({
   position: z.enum(TEXT_POSITIONS),
   /** Seconds the text stays on screen; null = the whole scene. */
   duration: z.number().min(1).max(30).nullable(),
+  /** Seconds after the scene starts (e.g. after a template's intro). */
+  offset: z.number().min(0).max(10).optional(),
 });
 
 export const planSchema = z.object({
@@ -93,6 +165,10 @@ export const planSchema = z.object({
   }),
   /** The company's brand kit logo, shown small in a corner for the whole video. */
   logoAssetId: uuid.optional(),
+  /** A template's typography, colours, animations and photo look. */
+  look: lookSchema.optional(),
+  /** Intro / outro animation, agent card and disclosure (from the brand kit and the agent profile). */
+  branding: brandingSchema.optional(),
   /** Easy Mode choices this plan was built from; `customized` turns true after Advanced edits. */
   easy: z.object({
     style: z.string().max(40),
@@ -215,23 +291,28 @@ export function mediaFileName(storagePath: string): string {
   return base;
 }
 
-const mediaIdFor = (assetId: string) => `m_${assetId.replace(/-/g, "").slice(0, 20)}`;
+export const mediaIdFor = (assetId: string) => `m_${assetId.replace(/-/g, "").slice(0, 20)}`;
 
-function textProps(t: TextOverlay, canvas: { width: number; height: number }, brand: PlanBrand | null) {
+function textProps(t: TextOverlay, canvas: { width: number; height: number }, brand: PlanBrand | null, look?: PlanLook) {
   const short = Math.min(canvas.width, canvas.height);
   const y = t.position === "top" ? -Math.round(canvas.height * 0.32) : t.position === "bottom" ? Math.round(canvas.height * 0.3) : 0;
-  const color = brand?.primary_color ?? "#1D4ED8";
+  const color = look?.accent ?? brand?.primary_color ?? "#1D4ED8";
+  const heading = look?.headingFont ?? brand?.heading_font ?? "Montserrat";
+  const body = look?.bodyFont ?? brand?.body_font ?? "Inter";
+  const ink = look?.text ?? "#ffffff";
+  const caps = (s: string) => (look?.uppercase ? s.toUpperCase() : s);
   const boxW = Math.round(canvas.width * 0.86);
   if (t.style === "title") {
-    return { text: t.text, font: brand?.heading_font ?? "Montserrat", fontSize: Math.round(short * 0.075), bold: true, color: "#ffffff",
-      y, textShadow: 16, textAnim: "rise-mask", boxW, boxFit: true, boxH: Math.round(canvas.height * 0.3), vAlign: "middle" };
+    // big titles keep tight spacing so long addresses still fit their box
+    return { text: caps(t.text), font: heading, fontSize: Math.round(short * 0.075), bold: true, color: ink, letterSpacing: Math.min(3, look?.letterSpacing ?? 0),
+      y, textShadow: 16, textAnim: look?.titleAnim ?? "rise-mask", boxW, boxFit: true, boxH: Math.round(canvas.height * 0.3), vAlign: "middle" };
   }
   if (t.style === "banner") {
-    return { text: t.text, font: brand?.heading_font ?? "Montserrat", fontSize: Math.round(short * 0.06), bold: true, color: "#ffffff",
-      bgColor: color, bgOpacity: 0.92, y, textAnim: "zoom-in", boxW, boxFit: true, boxH: Math.round(canvas.height * 0.3), vAlign: "middle" };
+    return { text: caps(t.text), font: heading, fontSize: Math.round(short * 0.06), bold: true, color: ink, letterSpacing: look?.letterSpacing ?? 0,
+      bgColor: color, bgOpacity: 0.92, y, textAnim: look?.bannerAnim ?? "zoom-in", boxW, boxFit: true, boxH: Math.round(canvas.height * 0.3), vAlign: "middle" };
   }
-  return { text: t.text, font: brand?.body_font ?? "Inter", fontSize: Math.round(short * 0.045), color: "#ffffff",
-    bgColor: "#000000", bgOpacity: 0.6, y, textAnim: "word-slide", boxW, boxFit: true, boxH: Math.round(canvas.height * 0.3), vAlign: "middle" };
+  return { text: t.text, font: body, fontSize: Math.round(short * 0.045), color: ink,
+    bgColor: look?.panel ?? "#000000", bgOpacity: 0.6, y, textAnim: look?.captionAnim ?? "word-slide", boxW, boxFit: true, boxH: Math.round(canvas.height * 0.3), vAlign: "middle" };
 }
 
 /**
@@ -267,6 +348,8 @@ export function composeDocument(input: {
   clips?: PlanClip[];
   /** The brand logo, when the plan shows it. */
   logo?: PlanLogo | null;
+  /** Brand images the plan's branding uses (company logo, brokerage logo, agent headshot). */
+  brandImages?: BrandImage[];
 }): Record<string, unknown> {
   const plan = input.plan;
   const aspect = input.aspect ?? plan.aspect;
@@ -295,6 +378,19 @@ export function composeDocument(input: {
   if (logo) {
     media.push({ id: mediaIdFor(logo.id), assetId: logo.id, name: "Logo", kind: "image", src: `/media/${mediaFileName(logo.storage_path)}`,
       ...(logo.width && logo.height ? { width: logo.width, height: logo.height } : {}) });
+  }
+  // branding images (intro/outro logo, brokerage logo, headshot)
+  const brandImageById = new Map((input.brandImages ?? []).map((b) => [b.id, b]));
+  if (logo) brandImageById.set(logo.id, logo);
+  const b = plan.branding;
+  const brandIds = b ? [...new Set([b.logoAssetId, b.brokerageLogoAssetId, b.agent?.headshotAssetId].filter((x): x is string => !!x))] : [];
+  for (const idv of brandIds) {
+    const img = brandImageById.get(idv);
+    if (!img) throw new Error("A branding image is not available");
+    if (!media.some((m) => m.assetId === idv)) {
+      media.push({ id: mediaIdFor(img.id), assetId: img.id, name: "Brand image", kind: "image", src: `/media/${mediaFileName(img.storage_path)}`,
+        ...(img.width && img.height ? { width: img.width, height: img.height } : {}) });
+    }
   }
   for (const c of usedClips) {
     media.push({
@@ -328,7 +424,7 @@ export function composeDocument(input: {
       duration: aiClip?.duration_seconds ? round(Math.min(length, Number(aiClip.duration_seconds))) : length,
       name: `Scene ${i + 1}`,
       cameraMove: aiClip ? `ai:${s.camera?.move ?? s.move}` : s.camera ? `studio:${s.camera.move}` : s.move,
-      props: aiClip ? { fit: "cover", volume: 0 } : { fit: "cover" },
+      props: aiClip ? { fit: "cover", volume: 0 } : { fit: "cover", ...(plan.look && plan.look.filter !== "none" ? { filterPreset: plan.look.filter } : {}) },
     };
     if (!aiClip) {
       const photo = photoById.get(s.assetId);
@@ -345,13 +441,14 @@ export function composeDocument(input: {
 
   plan.texts.forEach((t, i) => {
     const scene = resolveScene(plan, t.sceneId);
-    const start = scene ? starts.get(scene.id) : undefined;
-    if (start == null || !scene) return;
-    const duration = round(Math.min(t.duration ?? scene.duration, Math.max(0.5, total - start)));
+    const sceneStart = scene ? starts.get(scene.id) : undefined;
+    if (sceneStart == null || !scene) return;
+    const start = round(sceneStart + Math.min(t.offset ?? 0, Math.max(0, scene.duration - 1)));
+    const duration = round(Math.min(t.duration ?? scene.duration - (start - sceneStart), Math.max(0.5, total - start)));
     clips.push({
       id: `c_text_${t.id}`, mediaId: null, kind: "text", track: i % 2 === 0 ? "V2" : "V3",
       start, in: 0, duration, name: t.text.split("\n")[0]!.slice(0, 40),
-      props: textProps(t, canvas, input.brand),
+      props: textProps(t, canvas, input.brand, plan.look),
       transitionOut: { type: "fade", duration: Math.min(0.4, duration / 3) },
     });
   });
@@ -368,6 +465,15 @@ export function composeDocument(input: {
       props: { fit: "contain", scale, opacity: 0.92, x: round(canvas.width / 2 - pad - w / 2), y: round(-canvas.height / 2 + pad + h / 2) },
     });
   }
+  if (plan.look?.letterbox) {
+    const barH = Math.round(canvas.height * (canvas.width > canvas.height ? 0.1 : 0.07));
+    for (const [idv, y] of [["c_bars_top", -canvas.height / 2 + barH / 2], ["c_bars_bottom", canvas.height / 2 - barH / 2]] as const) {
+      clips.push({ id: idv, mediaId: null, kind: "shape", track: "V5", start: 0, in: 0, duration: total, name: "Cinema bar",
+        props: { y: round(y), shapes: [{ type: "rect", w: canvas.width, h: barH, fill: "#000000" }] } });
+    }
+  }
+  clips.push(...brandLayerClips({ plan, canvas, images: brandImageById, brandColor: input.brand?.primary_color ?? "#1D4ED8" }));
+
   if (music) {
     const len = round(Math.min(total, music.duration_seconds ? Number(music.duration_seconds) : total));
     const clip: Record<string, unknown> = {
@@ -390,6 +496,7 @@ export function composeDocument(input: {
     panSchema: 1,
     markers: [],
     tracks: [
+      ...(plan.branding || plan.look?.letterbox ? ["V9", "V8", "V7", "V6", "V5"].map((idv) => ({ id: idv, kind: "video" })) : []),
       { id: "V4", kind: "video" }, { id: "V3", kind: "video" }, { id: "V2", kind: "video" }, { id: "V1", kind: "video" },
       { id: "A1", kind: "audio" }, { id: "A2", kind: "audio" },
     ],

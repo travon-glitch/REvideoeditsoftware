@@ -32,7 +32,7 @@ export default async function VideoPage({
 }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const ctx = await requirePermission("videos.view");
   const { id } = await params;
-  const { created } = await searchParams;
+  const { created, notes } = await searchParams;
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
   const { data: video } = await supabase.from("video_projects").select("*").eq("id", id).maybeSingle();
@@ -43,7 +43,8 @@ export default async function VideoPage({
 
   const doc = (video.document ?? {}) as { clips?: DocClip[] };
   const clips = (doc.clips ?? []).slice().sort((a, b) => a.start - b.start);
-  const photoClips = clips.filter((c) => c.kind === "image" || c.kind === "video");
+  // scene clips only (brand logos and headshots are on other tracks)
+  const photoClips = clips.filter((c) => (c.kind === "image" || c.kind === "video") && (c as { track?: string }).track === "V1");
   const textClips = clips.filter((c) => c.kind === "text");
   const total = clips.reduce((m, c) => Math.max(m, c.start + c.duration), 0);
   const advanced = ctx.profile.ui_mode === "advanced";
@@ -72,6 +73,12 @@ export default async function VideoPage({
           </div>
         }
       />
+      {notes ? (
+        <Alert><AlertDescription className="text-base">
+          <p className="font-semibold">Please check:</p>
+          <ul className="ml-5 list-disc">{notes.split("\n").slice(0, 8).map((n) => <li key={n}>{n}</li>)}</ul>
+        </AlertDescription></Alert>
+      ) : null}
       {created ? (
         <Alert variant="success"><AlertDescription className="text-base">Your first version is ready: {photoClips.length} scenes, about {Math.round(total)} seconds.</AlertDescription></Alert>
       ) : null}

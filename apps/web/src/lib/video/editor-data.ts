@@ -14,7 +14,7 @@ export interface EditorAssets {
   music: PlanMusic[];
   /** AI camera clips made from the listing's photos. */
   clips: PlanClip[];
-  /** Brand kit logos registered as media. */
+  /** Brand images registered as media: company / brokerage logos and agent headshots. */
   logos?: PlanLogo[];
 }
 
@@ -30,7 +30,7 @@ export async function loadProjectAssets(db: Db, project: Pick<VideoProjectRow, "
       : Promise.resolve({ data: [] as PlanClip[] }),
     // the company's music library — only tracks verified for commercial use
     db.from("music_tracks").select("asset_id").eq("commercial_use_verified", true),
-    db.from("media_assets").select("id,storage_path,width,height").eq("bucket", BUCKETS.brandAssets).eq("kind", "logo"),
+    db.from("media_assets").select("id,storage_path,width,height").eq("bucket", BUCKETS.brandAssets).in("kind", ["logo", "headshot"]),
   ]);
   const libraryIds = (library.data ?? []).map((t) => t.asset_id);
   const { data: libraryMusic } = libraryIds.length
@@ -82,10 +82,23 @@ export function currentPlan(project: VideoProjectRow, listing: ListingRow | null
         music: parsed.data.music.assetId && !musicIds.has(parsed.data.music.assetId)
           ? { ...parsed.data.music, assetId: null } : parsed.data.music,
         logoAssetId: parsed.data.logoAssetId && (assets.logos ?? []).some((l) => l.id === parsed.data.logoAssetId) ? parsed.data.logoAssetId : undefined,
+        ...(parsed.data.branding ? { branding: availableBranding(parsed.data.branding, assets) } : {}),
       };
     }
   }
   return planForListing(listing, assets.photos, asAspect(project.aspect_ratios[0]));
+}
+
+/** Branding with images that are no longer available removed. */
+function availableBranding(b: NonNullable<EditPlan["branding"]>, assets: EditorAssets): NonNullable<EditPlan["branding"]> {
+  const has = (idv?: string) => !!idv && (assets.logos ?? []).some((l) => l.id === idv);
+  const { logoAssetId, brokerageLogoAssetId, ...rest } = b;
+  return {
+    ...rest,
+    ...(has(logoAssetId) ? { logoAssetId } : {}),
+    ...(has(brokerageLogoAssetId) ? { brokerageLogoAssetId } : {}),
+    agent: b.agent ? (() => { const { headshotAssetId, ...a } = b.agent!; return { ...a, ...(has(headshotAssetId) ? { headshotAssetId } : {}) }; })() : null,
+  };
 }
 
 /** Every file a plan references must be one of the project's own files. */
@@ -97,6 +110,9 @@ export function planUsesOnly(plan: EditPlan, assets: EditorAssets): string | nul
   if (badClip) return "A scene uses an AI clip that wasn't made from its photo.";
   if (plan.music.assetId && !assets.music.some((m) => m.id === plan.music.assetId)) return "The chosen music isn't part of this project.";
   if (plan.logoAssetId && !(assets.logos ?? []).some((l) => l.id === plan.logoAssetId)) return "The brand logo isn't available.";
+  const b = plan.branding;
+  const brandIds = b ? [b.logoAssetId, b.brokerageLogoAssetId, b.agent?.headshotAssetId].filter(Boolean) : [];
+  if (brandIds.some((idv) => !(assets.logos ?? []).some((l) => l.id === idv))) return "A branding image (logo or headshot) isn't available.";
   return null;
 }
 

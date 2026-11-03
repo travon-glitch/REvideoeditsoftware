@@ -7,6 +7,8 @@ import { composeDocument, totalDuration, type Aspect, type EditPlan } from "@/li
 import { loadProjectAssets, planUsesOnly } from "@/lib/video/editor-data";
 import { validateFableCutDocument } from "@/lib/video/validate-document";
 import type { EasyListing } from "@/lib/video/easy";
+import { agentForListing, brandFacts, brandRules, loadBrandContext } from "@/lib/brand";
+import { applyBrandRules } from "@/lib/video/templates";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -21,6 +23,16 @@ export function toEasyListing(l: ListingRow): EasyListing {
     contact_phone: l.contact_phone, contact_email: l.contact_email, cover_asset_id: l.cover_asset_id,
     open_house_text: formatOpenHouse(l.open_house_date, l.open_house_start, l.open_house_end),
   };
+}
+
+/** The administrator's branding requirements, applied to any plan before it is saved or rendered. */
+export async function enforceBranding(db: Db, ctx: SessionContext, listingId: string | null, plan: EditPlan): Promise<{ plan: EditPlan; changes: string[] }> {
+  const rules = await brandRules(db).catch(() => null);
+  if (!rules || !(rules.requireLogo || rules.requireDisclosure || rules.requireAgentCard || rules.lockFonts || rules.lockColors)) return { plan, changes: [] };
+  const bc = await loadBrandContext(db, ctx);
+  const { data: listing } = listingId ? await db.from("listings").select("agent_profile_id,agent_name,brokerage,contact_phone,contact_email").eq("id", listingId).maybeSingle() : { data: null };
+  const { agent } = listing ? await agentForListing(db, listing, bc.kit) : { agent: null };
+  return applyBrandRules(plan, rules, brandFacts(bc, agent));
 }
 
 /**
@@ -41,9 +53,10 @@ export async function savePlan(db: Db, ctx: SessionContext, projectId: string, p
     return { ok: false, status: 409, message: "This video was changed in another window. Reload to see the latest version.", revision: project.revision };
   }
   const assets = await loadProjectAssets(db, project);
+  plan = (await enforceBranding(db, ctx, project.listing_id, plan)).plan;
   const misuse = planUsesOnly(plan, assets);
   if (misuse) return { ok: false, status: 400, message: misuse };
-  const document = composeDocument({ plan, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, logo: (assets.logos ?? []).find((l) => l.id === plan.logoAssetId) ?? null, brand: ctx.brandKit });
+  const document = composeDocument({ plan, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, logo: (assets.logos ?? []).find((l) => l.id === plan.logoAssetId) ?? null, brandImages: assets.logos ?? [], brand: ctx.brandKit });
   const check = validateFableCutDocument(document);
   if (!check.ok) return { ok: false, status: 400, message: "This change can't be saved. Please undo it and try again." };
 
@@ -80,9 +93,10 @@ export async function queueRenders(db: Db, ctx: SessionContext, projectId: strin
   if (busy && busy.length > 0) return { ok: false, status: 409, message: "This video is already being made. It will be ready in a few minutes." };
 
   const assets = await loadProjectAssets(db, project);
+  plan = (await enforceBranding(db, ctx, project.listing_id, plan)).plan;
   const rows = [];
   for (const aspect of [...new Set(aspects)]) {
-    const document = composeDocument({ plan, aspect, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, logo: (assets.logos ?? []).find((l) => l.id === plan.logoAssetId) ?? null, brand: ctx.brandKit });
+    const document = composeDocument({ plan, aspect, title: project.title, photos: assets.photos, music: assets.music, clips: assets.clips, logo: (assets.logos ?? []).find((l) => l.id === plan.logoAssetId) ?? null, brandImages: assets.logos ?? [], brand: ctx.brandKit });
     if (!validateFableCutDocument(document).ok) return { ok: false, status: 400, message: "This video can't be made yet. Please check your photos." };
     rows.push({
       organization_id: project.organization_id, project_id: projectId, revision: project.revision, preset: "master-1080p",

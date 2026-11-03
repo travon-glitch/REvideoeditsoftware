@@ -10,7 +10,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin/users", label: "Users" },
     { href: "/admin/projects", label: "Company videos" },
     { href: "/admin/audit", label: "Activity log" },
-    { href: "/admin/branding", label: "Branding" },
+    ...(can(ctx.profile.role, "branding.manage") ? [{ href: "/admin/branding", label: "Brand kit" }] : []),
+    { href: "/admin/templates", label: "Templates" },
+    { href: "/admin/agents", label: "Agent profiles" },
     { href: "/admin/music", label: "Music library" },
     ...(can(ctx.profile.role, "settings.manage") ? [{ href: "/admin/settings", label: "System settings" }] : []),
   ];

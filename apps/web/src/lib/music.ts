@@ -1,4 +1,5 @@
 import "server-only";
+import { imageSize } from "@/lib/image-size";
 /*
  * Licensed music library.
  *  - Built-in tracks: original music composed by this app's own code
@@ -81,14 +82,31 @@ export function pickTrack(tracks: LibraryTrack[], mood: MusicMood, avoid: Set<st
 
 /** The brand kit logo as a media asset the render worker can verify (registered once, service role). */
 export async function ensureLogoAsset(orgId: string, logoPath: string | null | undefined): Promise<{ id: string; storage_path: string; width: number | null; height: number | null } | null> {
-  if (!logoPath || !logoPath.startsWith(`${orgId}/`)) return null;
+  return ensureBrandImage(orgId, logoPath, "logo");
+}
+
+/**
+ * Registers a brand-assets file (company / brokerage logo) as a media asset so the render
+ * worker can verify it by id, with its real pixel size (read from the file's header).
+ */
+export async function ensureBrandImage(orgId: string, path: string | null | undefined, kind: "logo" | "headshot"): Promise<{ id: string; storage_path: string; width: number | null; height: number | null } | null> {
+  if (!path || !path.startsWith(`${orgId}/`)) return null;
   const admin = createAdminClient();
-  const { data: found } = await admin.from("media_assets").select("id,storage_path,width,height").eq("organization_id", orgId).eq("bucket", BUCKETS.brandAssets).eq("storage_path", logoPath).maybeSingle();
-  if (found) return found;
-  const ext = logoPath.split(".").pop()?.toLowerCase();
+  const { data: found } = await admin.from("media_assets").select("id,storage_path,width,height").eq("organization_id", orgId).eq("bucket", BUCKETS.brandAssets).eq("storage_path", path).maybeSingle();
+  if (found?.width && found.height) return found;
+  const { data: file } = await admin.storage.from(BUCKETS.brandAssets).download(path);
+  const bytes = file ? new Uint8Array(await file.arrayBuffer()) : null;
+  const size = bytes ? imageSize(bytes) : null;
+  if (found) {
+    if (!size) return found;
+    const { data } = await admin.from("media_assets").update({ width: size.width, height: size.height }).eq("id", found.id).select("id,storage_path,width,height").single();
+    return data ?? found;
+  }
+  const ext = path.split(".").pop()?.toLowerCase();
   const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
   const { data } = await admin.from("media_assets").insert({
-    organization_id: orgId, kind: "logo", bucket: BUCKETS.brandAssets, storage_path: logoPath, file_name: `logo.${ext}`, mime_type: mime, size_bytes: 1,
+    organization_id: orgId, kind, bucket: BUCKETS.brandAssets, storage_path: path, file_name: `${kind}.${ext}`, mime_type: mime,
+    size_bytes: bytes?.length ?? 1, ...(size ? { width: size.width, height: size.height } : {}),
   }).select("id,storage_path,width,height").single();
   return data ?? null;
 }
