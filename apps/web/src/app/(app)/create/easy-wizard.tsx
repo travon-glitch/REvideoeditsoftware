@@ -20,6 +20,7 @@ import {
 import type { EditPlan } from "@/lib/video/plan";
 import type { CameraSpec } from "@lvs/camera-presets";
 import { cn } from "@/lib/utils";
+import { DirectorButton } from "@/components/director/director-button";
 import { deletePhoto, registerPhotos, reorderPhotos, setMainPhoto } from "../listings/actions";
 import { createEasyProject, listEasyPhotos, saveEasyDetails, startEasyListing } from "./actions";
 import {
@@ -52,6 +53,8 @@ export interface WizardProps {
   brand: EasyBrand | null;
   brandColor: string;
   canDownload: boolean;
+  /** The company switched on the Claude AI Director. */
+  directorAvailable?: boolean;
 }
 
 /** Everything Undo / Redo covers. */
@@ -503,16 +506,35 @@ export function EasyWizard(props: WizardProps) {
             </div>
           ) : null}
 
-          <div className="flex flex-col items-start gap-3 rounded-2xl bg-sidebar p-6 text-white sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-1">
-              <p className="flex items-center gap-2 text-xl font-bold"><Sparkles className="size-6" aria-hidden="true" />In a hurry?</p>
-              <p className="text-base text-white/80">We&apos;ll pick the style, order, timing, camera motion, text, music and your branding — and start making the video right away.</p>
+          {props.directorAvailable ? (
+            <div className="flex flex-col gap-4 rounded-2xl bg-sidebar p-6 text-white">
+              <div className="flex flex-col gap-1">
+                <p className="flex items-center gap-2 text-xl font-bold"><Sparkles className="size-6" aria-hidden="true" />Let the AI Director make it</p>
+                <p className="text-base text-white/80">Claude looks at every photo, picks the opening shot, order, timing, camera moves, text and call to action — using only your listing details — and the video starts rendering. You can inspect or edit it afterwards.</p>
+              </div>
+              <DirectorButton listingId={listingId} beforeStart={async () => {
+                setNotice(null);
+                if (!enough) { setNotice({ tone: "error", text: `Add at least ${MIN_PHOTOS} photos first — you have ${photos.length}.` }); return false; }
+                if (needAddress()) return false;
+                if (!(await flushDetails())) { setNotice({ tone: "error", text: "Please check the details you typed.", goStep: 3 }); return false; }
+                return listingId;
+              }} />
+              <button type="button" className="self-start text-sm text-white/70 underline hover:text-white" disabled={!enough || busy !== null || !!uploading} onClick={() => void autoCreate()}>
+                {busy === "auto" ? "Creating…" : "Or use the quick rule-based storyboard (no AI)"}
+              </button>
             </div>
-            <Button size="xl" className="shrink-0 bg-brand text-white hover:bg-brand/90" disabled={!enough || busy !== null || !!uploading} onClick={() => void autoCreate()}>
-              {busy === "auto" ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Wand2 aria-hidden="true" />}
-              {busy === "auto" ? "Creating…" : "Auto Create with AI"}
-            </Button>
-          </div>
+          ) : (
+            <div className="flex flex-col items-start gap-3 rounded-2xl bg-sidebar p-6 text-white sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-1">
+                <p className="flex items-center gap-2 text-xl font-bold"><Sparkles className="size-6" aria-hidden="true" />In a hurry?</p>
+                <p className="text-base text-white/80">We&apos;ll pick the style, order, timing, camera motion, text, music and your branding — and start making the video right away.</p>
+              </div>
+              <Button size="xl" className="shrink-0 bg-brand text-white hover:bg-brand/90" disabled={!enough || busy !== null || !!uploading} onClick={() => void autoCreate()}>
+                {busy === "auto" ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Wand2 aria-hidden="true" />}
+                {busy === "auto" ? "Creating…" : "Auto Create with AI"}
+              </Button>
+            </div>
+          )}
         </section>
       ) : null}
 

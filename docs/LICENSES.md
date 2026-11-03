@@ -89,3 +89,9 @@ Create `THIRD_PARTY_NOTICES.md` (and an in-app "Open-source licences" page) cont
 | MuAPI request flow (`packages/ai-motion/src/providers/muapi.ts`) | MIT — adapted from Open-Generative-AI `src/lib/muapi.js` (upstream Anil-matcha/Open-Generative-AI, same code as the audited fork, MIT ≥ `1ff3667`) | Server-side provider adapter; only active when `MUAPI_API_KEY` is set | Compatible; attribution in the file header. **⚠ Legal review**: MuAPI's own terms of service and each video model's output licence must be accepted by the company before it is switched on. |
 | Cinema Studio presets (camera/lens look tables) | MIT (already vendored in `packages/camera-presets/upstream`, Stage 1) | Studied for the preset structure; our presets are original | Compatible. |
 | OpenCV sample images `home.jpg`, `building.jpg` (`apps/web/tests/fixtures/opencv-*.jpg`) | Apache-2.0 (OpenCV 4.x) | Test fixtures only (Stage 7 acceptance tests) | Compatible; not shipped in the app. |
+
+## Stage 9 additions (AI Video Director)
+
+| Component | Licence | How it is used | Verdict |
+|---|---|---|---|
+| `@anthropic-ai/sdk` 1.4.0 (official Anthropic TypeScript SDK) | MIT | Server-side calls to the Claude API (photo interpretation, storyboard) | Compatible. Use of the Claude API is governed by Anthropic's commercial terms, accepted by the company when it creates its API key. |

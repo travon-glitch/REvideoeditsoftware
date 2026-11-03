@@ -33,6 +33,15 @@ export type OrganizationSettingsRow = {
   default_max_videos_per_month: number | null; default_max_ai_generations_per_month: number | null;
   viewers_can_download_by_default: boolean; updated_by: string | null; updated_at: string;
   max_batch_size: number; concurrent_render_limit: number; daily_video_limit: number | null;
+  claude_enabled: boolean; claude_model: string; claude_monthly_run_limit: number | null; claude_daily_runs_per_user: number | null;
+};
+export type DirectorRunRow = {
+  id: string; organization_id: string; listing_id: string | null; project_id: string | null; created_by: string | null;
+  style: string; model: string; status: JobStatus; photo_count: number; analysis: Json | null; storyboard: Json | null;
+  warnings: Json; usage: Json; cost_cents: number; error_message: string | null; created_at: string; finished_at: string | null;
+};
+export type OrganizationSecretRow = {
+  organization_id: string; name: string; ciphertext: string; last4: string; updated_by: string | null; updated_at: string;
 };
 export type BrandKitRow = {
   id: string; organization_id: string; name: string; is_default: boolean; company_name: string | null;
@@ -121,7 +130,10 @@ export type Database = {
       project_members: Table<ProjectMemberRow, "project_id" | "user_id" | "organization_id", never>;
       organization_settings: Table<OrganizationSettingsRow, "organization_id",
         "ai_enabled" | "monthly_ai_budget_cents" | "default_max_videos_per_month" | "default_max_ai_generations_per_month" | "viewers_can_download_by_default" | "updated_by"
-        | "max_batch_size" | "concurrent_render_limit" | "daily_video_limit">;
+        | "max_batch_size" | "concurrent_render_limit" | "daily_video_limit"
+        | "claude_enabled" | "claude_model" | "claude_monthly_run_limit" | "claude_daily_runs_per_user">;
+      director_runs: Table<DirectorRunRow, "organization_id" | "style" | "model" | "photo_count">;
+      organization_secrets: Table<OrganizationSecretRow, "organization_id" | "name" | "ciphertext" | "last4">;
       video_batches: Table<VideoBatchRow, "organization_id" | "size">;
       library_videos: Table<LibraryVideoRow, "organization_id" | "render_job_id" | "title" | "aspect" | "output_path">;
       brand_kits: Table<BrandKitRow, "organization_id" | "name">;
@@ -162,6 +174,9 @@ export type Database = {
       reorder_listing_photos: { Args: { p_listing_id: string; p_asset_ids: string[] }; Returns: undefined };
       listing_access: { Args: { p_listing: string }; Returns: "none" | "read" | "edit" };
       project_access: { Args: { p_project: string }; Returns: "none" | "read" | "edit" };
+      start_director_run: { Args: { p_listing_id: string; p_style: string; p_photo_count: number }; Returns: DirectorRunRow };
+      claude_key_status: { Args: Record<PropertyKey, never>; Returns: Json };
+      director_available: { Args: Record<PropertyKey, never>; Returns: boolean };
       start_video_batch: { Args: { p_listing_id: string; p_size: number; p_analysis?: Json }; Returns: VideoBatchRow };
       admin_set_batch_permission: { Args: { p_user_id: string; p_allowed: boolean }; Returns: ProfileRow };
       review_ai_clip: { Args: { p_asset: string; p_decision: "approved" | "problem"; p_note?: string | null }; Returns: Json };

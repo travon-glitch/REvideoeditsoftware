@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Images, Plus, Layers } from "lucide-react";
+import { ArrowLeft, Images, Plus, Layers, Sparkles } from "lucide-react";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/auth/roles";
@@ -41,13 +41,19 @@ export default async function ListingPage({
   const title = listing.address_line || "Untitled listing";
 
   if (access === "edit") {
+    const directorOn = ctx.profile.can_use_ai && !!(await supabase.rpc("director_available")).data;
     const initialStep = Math.min(2, Math.max(0, Number(step ?? 1) - 1)) || 0;
     return (
       <div className="flex flex-col gap-6">
         <Button variant="ghost" asChild className="self-start"><Link href="/listings"><ArrowLeft aria-hidden="true" />My Listings</Link></Button>
         <PageHeader title={title} description="Fill in what you know — everything is saved as you go."
           actions={can(ctx.profile.role, "videos.create") && managed.length >= 5
-            ? <Button asChild size="lg" variant="outline"><Link href={`/generate?listing=${listing.id}`}><Layers aria-hidden="true" />Generate 6 Videos</Link></Button>
+            ? (
+              <div className="flex flex-wrap gap-2">
+                {directorOn ? <Button asChild size="lg" className="bg-brand text-white hover:bg-brand/90"><Link href={`/create?listing=${listing.id}`}><Sparkles aria-hidden="true" />Create My Video Automatically</Link></Button> : null}
+                <Button asChild size="lg" variant="outline"><Link href={`/generate?listing=${listing.id}`}><Layers aria-hidden="true" />Generate 6 Videos</Link></Button>
+              </div>
+            )
             : undefined} />
         <ListingWorkspace
           listing={listing}

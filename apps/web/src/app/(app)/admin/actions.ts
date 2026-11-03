@@ -1,4 +1,8 @@
 "use server";
+import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
+import { isDirectorModel } from "@/lib/director/claude";
+import { decryptSecret, encryptSecret, secretsConfigured } from "@/lib/secrets";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -238,4 +242,78 @@ export async function setBatchPermission(userId: string, allowed: boolean): Prom
   if (error) return { ok: false, message: "Only the Super Admin can change this." };
   revalidatePath(`/admin/users/${userId}`);
   return { ok: true };
+}
+
+/* ── AI Director (Claude) — Super Admin only ─────────────────────────────── */
+
+const claudeSettingsSchema = z.object({
+  claude_enabled: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),
+  claude_model: z.string().refine(isDirectorModel, "Choose a model."),
+  claude_monthly_run_limit: z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).max(100000).nullable()),
+  claude_daily_runs_per_user: z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).max(1000).nullable()),
+});
+
+export async function saveClaudeSettings(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const auth = await authorizeAction("settings.manage");
+  if (!auth.ok) return auth.result;
+  const parsed = claudeSettingsSchema.safeParse(formDataToObject(formData));
+  if (!parsed.success) return { ok: false, message: "Please check the highlighted fields.", fieldErrors: fieldErrors(parsed.error) };
+  const supabase = await createClient();
+  const { data } = await supabase.from("organization_settings").update({ ...parsed.data, updated_by: auth.ctx.userId })
+    .eq("organization_id", auth.ctx.organization.id).select("organization_id");
+  if (!data?.length) return { ok: false, message: "Only the Super Admin can change these settings." };
+  await createAdminClient().from("audit_log").insert({
+    organization_id: auth.ctx.organization.id, actor_id: auth.ctx.userId, action: "claude.settings_updated",
+    target_type: "organization", target_id: auth.ctx.organization.id, metadata: parsed.data,
+  });
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "AI Director settings saved." };
+}
+
+/** Stores the Claude API key encrypted (server key LVS_SECRETS_KEY). It can't be read back — only replaced or removed. */
+export async function saveClaudeKey(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const auth = await authorizeAction("settings.manage");
+  if (!auth.ok) return auth.result;
+  const key = String(formData.get("api_key") ?? "").trim();
+  if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key)) return { ok: false, message: "That doesn't look like a Claude API key (it starts with sk-ant-).", fieldErrors: { api_key: "Paste the full key." } };
+  if (!secretsConfigured()) return { ok: false, message: "The server can't store secrets yet: set LVS_SECRETS_KEY (32 random bytes, base64) on the server, or set ANTHROPIC_API_KEY there instead." };
+  const admin = createAdminClient();
+  const { error } = await admin.from("organization_secrets").upsert({
+    organization_id: auth.ctx.organization.id, name: "anthropic_api_key", ciphertext: encryptSecret(key), last4: key.slice(-4),
+    updated_by: auth.ctx.userId, updated_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, message: "The key couldn't be saved. Please try again." };
+  await admin.from("audit_log").insert({ organization_id: auth.ctx.organization.id, actor_id: auth.ctx.userId, action: "claude.key_set", target_type: "organization", target_id: auth.ctx.organization.id, metadata: { last4: key.slice(-4) } });
+  revalidatePath("/admin/settings");
+  return { ok: true, message: `Claude API key saved (ends in ${key.slice(-4)}).` };
+}
+
+export async function removeClaudeKey(): Promise<ActionResult> {
+  const auth = await authorizeAction("settings.manage");
+  if (!auth.ok) return auth.result;
+  const admin = createAdminClient();
+  await admin.from("organization_secrets").delete().eq("organization_id", auth.ctx.organization.id).eq("name", "anthropic_api_key");
+  await admin.from("audit_log").insert({ organization_id: auth.ctx.organization.id, actor_id: auth.ctx.userId, action: "claude.key_removed", target_type: "organization", target_id: auth.ctx.organization.id, metadata: {} });
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "Claude API key removed." };
+}
+
+/** Checks the key and model with a free Models API call (no tokens used). */
+export async function testClaudeConnection(): Promise<ActionResult> {
+  const auth = await authorizeAction("settings.manage");
+  if (!auth.ok) return auth.result;
+  const supabase = await createClient();
+  const { data: s } = await supabase.from("organization_settings").select("claude_model").eq("organization_id", auth.ctx.organization.id).maybeSingle();
+  const { data: secret } = await createAdminClient().from("organization_secrets").select("ciphertext").eq("organization_id", auth.ctx.organization.id).eq("name", "anthropic_api_key").maybeSingle();
+  const apiKey = secret?.ciphertext ? decryptSecret(secret.ciphertext) : process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: false, message: "No Claude API key is set." };
+  try {
+    const model = await new Anthropic({ apiKey, maxRetries: 0, timeout: 20_000 }).models.retrieve(s?.claude_model ?? "claude-opus-5-5");
+    return { ok: true, message: `Connected. ${model.display_name} is available to this key.` };
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError) return { ok: false, message: "Claude rejected this key." };
+    if (e instanceof Anthropic.NotFoundError) return { ok: false, message: "This key can't use the selected model." };
+    if (e instanceof Anthropic.APIError) return { ok: false, message: `Claude answered with an error (${e.status ?? "network"}).` };
+    return { ok: false, message: "Couldn't reach Claude from the server." };
+  }
 }

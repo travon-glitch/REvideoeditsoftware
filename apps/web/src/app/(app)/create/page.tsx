@@ -118,6 +118,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Promi
       brand={ctx.brandKit ? { company_name: ctx.brandKit.company_name, outro_text: ctx.brandKit.outro_text } : null}
       brandColor={ctx.brandKit?.primary_color ?? "#1D4ED8"}
       canDownload={ctx.profile.can_download}
+      directorAvailable={ctx.profile.can_use_ai && !!(await db.rpc("director_available")).data}
     />
   );
 }
