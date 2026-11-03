@@ -25,11 +25,20 @@ type Db = Awaited<ReturnType<typeof createClient>>;
 export const CLIP_PROJECT_KIND = "camera_clip";
 export const LOCAL_DEPTH = "local-depth";
 
-/** The generative provider the AI worker has (set LVS_GENERATIVE_PROVIDER=muapi on the web app when the worker has a key). */
-export function generativeProvider(): { id: string; model: string } | null {
-  const id = process.env.LVS_GENERATIVE_PROVIDER?.trim();
-  if (!id) return null;
-  return { id, model: process.env.LVS_GENERATIVE_MODEL?.trim() || (id === "muapi" ? "kling-v2.1-standard-i2v" : "default") };
+export interface AiAvailability { generative: { id: string; model: string } | null; depth: boolean }
+
+/**
+ * Which AI camera methods the company has switched on (Admin → AI control panel).
+ * Generative video needs the company's provider key saved there, or a key set on the AI worker
+ * (then LVS_GENERATIVE_PROVIDER=muapi on the web app says so).
+ */
+export async function aiAvailability(db: Db): Promise<AiAvailability> {
+  const { data } = await db.rpc("my_ai_features");
+  const f = (data ?? {}) as { generative?: boolean; depth?: boolean; video_provider?: string; video_model?: string; video_key_saved?: boolean };
+  const envProvider = process.env.LVS_GENERATIVE_PROVIDER?.trim();
+  const id = f.video_key_saved ? (f.video_provider ?? "muapi") : envProvider;
+  const model = f.video_model || process.env.LVS_GENERATIVE_MODEL?.trim() || "kling-v2.1-standard-i2v";
+  return { generative: f.generative && id ? { id, model } : null, depth: f.depth !== false };
 }
 
 interface PhotoRow { id: string; listing_id: string | null; storage_path: string; file_name: string; width: number | null; height: number | null; kind: string; bucket: string }
@@ -93,10 +102,13 @@ export async function startAiClip(db: Db, ctx: SessionContext, input: {
   const manual = !isManualZero(input.camera.manual);
   if (input.method === "depth" && !manual && !move.ai.includes("depth")) return { ok: false, status: 400, message: `${move.name} doesn't need AI depth — use the Standard method.` };
   let provider = LOCAL_DEPTH, model = "midas-v21-small";
+  const available = await aiAvailability(db);
   if (input.method === "generative") {
-    const g = generativeProvider();
-    if (!g) return { ok: false, status: 400, message: "No generative AI video service is connected yet. Ask an administrator." };
+    const g = available.generative;
+    if (!g) return { ok: false, status: 400, message: "Generative AI video isn't switched on or connected yet. Ask your Super Admin." };
     provider = g.id; model = g.model;
+  } else if (!available.depth) {
+    return { ok: false, status: 403, message: "AI camera moves are switched off for your company. Ask your Super Admin." };
   }
   const photo = await loadPhoto(db, input.assetId);
   if (!photo.ok) return photo;
@@ -106,6 +118,7 @@ export async function startAiClip(db: Db, ctx: SessionContext, input: {
     input: { spec: input.camera, duration: input.duration, aspect: input.aspect } as unknown as Json,
   }).select("id").single();
   if (error && /Monthly AI limit/.test(error.message)) return { ok: false, status: 403, message: "You've reached your monthly AI limit." };
+  if (error && /AI spending limit/.test(error.message)) return { ok: false, status: 403, message: `The company's ${/Daily/.test(error.message) ? "daily" : "monthly"} AI spending limit is reached. Ask your Super Admin.` };
   if (error || !data) {
     return { ok: false, status: 403, message: input.method === "generative" ? "Generative AI isn't switched on for your company. An administrator can turn it on." : "You can't make AI clips for this photo." };
   }

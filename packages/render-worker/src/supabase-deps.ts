@@ -74,3 +74,10 @@ export async function claimJob(db: SupabaseClient, workerId: string): Promise<Re
   const job = data as RenderJob | null;
   return job && job.id ? job : null;
 }
+
+/** Tells the admin panel this worker is alive (never stops the worker if it fails). */
+export async function heartbeat(db: SupabaseClient, w: { id: string; host: string; job: string | null; done: number; error?: string | null }): Promise<void> {
+  try {
+    await db.rpc("worker_heartbeat", { p_worker: w.id, p_kind: "render", p_host: w.host, p_providers: [], p_job: w.job, p_done: w.done, p_error: w.error ?? null });
+  } catch { /* the health page will show the worker as quiet */ }
+}

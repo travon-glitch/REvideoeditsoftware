@@ -11,13 +11,14 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  VOICES, alignWords, buildCues, readWav, synthesize, transcribe, unknownWords, voiceModelsAvailable, wavBytes, type VoiceId,
+  ASR_MODEL, TTS_MODEL, VOICES, alignWords, buildCues, readWav, synthesize, transcribe, unknownWords, voiceModelsAvailable, wavBytes, type VoiceId,
 } from "@lvs/voice";
 import type { createClient } from "@/lib/supabase/server";
 import type { SessionContext } from "@/lib/auth/session";
 import { BUCKETS } from "@/lib/storage";
 import type { Cue, Voiceover } from "@/lib/video/plan";
 import type { StoreResult } from "@/lib/video/project-store";
+import type { Json } from "@/lib/database.types";
 import { checkNarration } from "@/lib/video/narration";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -99,6 +100,13 @@ export async function generateVoiceover(db: Db, ctx: SessionContext, projectId: 
   if (!project) return { ok: false, status: 403, message: "You can't change this video." };
   const script = input.script.trim();
   if (!script) return { ok: false, status: 400, message: "Write the narration first." };
+  const features = await aiFeatures(db);
+  return withLocalAi(db, "voiceover", projectId, TTS_MODEL.name, () => speakAndStore(db, ctx, project, projectId, script, input, models.asr && features.captions),
+    (v) => ({ voice: input.voice, seconds: v.voiceover.duration, words: script.split(/\s+/).length }));
+}
+
+async function speakAndStore(db: Db, ctx: SessionContext, project: { organization_id: string; listing_id: string | null }, projectId: string, script: string,
+  input: { voice: VoiceId; speed: number; start: number; volume: number }, withCaptions: boolean): Promise<StoreResult<VoiceoverResult>> {
 
   let factWarnings: VoiceoverResult["factWarnings"] = [];
   if (project.listing_id) {
@@ -123,7 +131,9 @@ export async function generateVoiceover(db: Db, ctx: SessionContext, projectId: 
   }
   // word times: listen to what was spoken, then put the written words on those times
   let cues: Cue[];
-  if (models.asr) {
+  if (!withCaptions) {
+    cues = []; // automatic captions are switched off for the company, or speech recognition isn't installed
+  } else if (voiceModelsAvailable().asr) {
     const heard = transcribe(n.samples, n.sampleRate);
     cues = cuesFrom(alignWords(script, heard));
   } else {
@@ -155,6 +165,10 @@ export async function transcribeProjectAudio(db: Db, projectId: string, assetId:
   if (!project) return { ok: false, status: 403, message: "You can't change this video." };
   const { data: asset } = await db.from("media_assets").select("id,bucket,storage_path,project_id").eq("id", assetId).eq("project_id", projectId).eq("kind", "audio").maybeSingle();
   if (!asset) return { ok: false, status: 404, message: "That audio isn't part of this video." };
+  return withLocalAi(db, "transcription", projectId, ASR_MODEL.name, () => listen(db, asset, script), (v) => ({ cues: v.cues.length }));
+}
+
+async function listen(db: Db, asset: { bucket: string; storage_path: string }, script?: string): Promise<StoreResult<{ cues: Cue[]; text: string }>> {
   const { data: file } = await db.storage.from(asset.bucket).download(asset.storage_path);
   if (!file) return { ok: false, status: 404, message: "The audio file couldn't be read." };
   const { samples, sampleRate } = await decodeForAsr(new Uint8Array(await file.arrayBuffer()));
@@ -173,4 +187,35 @@ export async function transcribeProjectAudio(db: Db, projectId: string, assetId:
     });
   const cues = cuesFrom(words);
   return { ok: true, value: { cues, text: words.map((w) => w.text).join(" ") } };
+}
+
+interface AiFeatures { can_use_ai: boolean; voiceover: boolean; captions: boolean }
+async function aiFeatures(db: Db): Promise<AiFeatures> {
+  const { data } = await db.rpc("my_ai_features");
+  const f = (data ?? {}) as Partial<AiFeatures>;
+  return { can_use_ai: !!f.can_use_ai, voiceover: !!f.voiceover, captions: !!f.captions };
+}
+
+/**
+ * Narration and captions run on this server, but they are still AI: the database checks that
+ * the company has the feature switched on and that the person may use AI and edit the video,
+ * and logs each use for the AI usage log.
+ */
+async function withLocalAi<T>(db: Db, kind: "voiceover" | "transcription", projectId: string, model: string,
+  run: () => Promise<StoreResult<T>>, details: (v: T) => Record<string, unknown>): Promise<StoreResult<T>> {
+  const { data: id, error } = await db.rpc("start_local_ai", { p_kind: kind, p_project: projectId, p_model: model });
+  if (error || !id) {
+    const msg = error?.message ?? "";
+    const message = /switched off/.test(msg) ? `${kind === "voiceover" ? "AI narration" : "Automatic captions"} ${kind === "voiceover" ? "is" : "are"} switched off for your company. An administrator can turn ${kind === "voiceover" ? "it" : "them"} on.`
+      : /account/.test(msg) ? "AI isn't switched on for your account. Ask an administrator." : "You can't change this video.";
+    return { ok: false, status: 403, message };
+  }
+  try {
+    const r = await run();
+    await db.rpc("finish_local_ai", { p_id: id, p_ok: r.ok, p_error: r.ok ? null : r.message, p_details: (r.ok ? details(r.value) : {}) as Json });
+    return r;
+  } catch (e) {
+    await db.rpc("finish_local_ai", { p_id: id, p_ok: false, p_error: e instanceof Error ? e.message : "failed", p_details: {} });
+    throw e;
+  }
 }

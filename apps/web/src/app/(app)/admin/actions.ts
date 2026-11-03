@@ -169,19 +169,17 @@ export async function unassignProject(_prev: ActionResult | null, formData: Form
   return { ok: true, message: "Project removed from this person." };
 }
 
-/** Super Admin: AI on/off, budget, default limits. */
+/** Super Admin: download default, video limits, batch and render limits. */
 export async function saveOrgSettings(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const auth = await authorizeAction("settings.manage");
   if (!auth.ok) return auth.result;
   const parsed = orgSettingsSchema.safeParse(formDataToObject(formData));
   if (!parsed.success) return { ok: false, message: "Please check the highlighted fields.", fieldErrors: fieldErrors(parsed.error) };
   const supabase = await createClient();
+  // AI switches, spending ceilings and AI limits are saved from the AI control panel (saveAiControls)
   const { data, error } = await supabase.from("organization_settings").update({
-    ai_enabled: parsed.data.ai_enabled,
     viewers_can_download_by_default: parsed.data.viewers_can_download_by_default,
-    monthly_ai_budget_cents: parsed.data.monthly_ai_budget_dollars,
     default_max_videos_per_month: parsed.data.default_max_videos_per_month,
-    default_max_ai_generations_per_month: parsed.data.default_max_ai_generations_per_month,
     max_batch_size: parsed.data.max_batch_size,
     concurrent_render_limit: parsed.data.concurrent_render_limit,
     daily_video_limit: parsed.data.daily_video_limit,
@@ -193,6 +191,7 @@ export async function saveOrgSettings(_prev: ActionResult | null, formData: Form
     target_type: "organization", target_id: auth.ctx.organization.id, metadata: parsed.data,
   });
   revalidatePath("/admin/settings");
+  revalidatePath("/admin/ai");
   return { ok: true, message: "Settings saved." };
 }
 
@@ -290,6 +289,7 @@ export async function saveClaudeSettings(_prev: ActionResult | null, formData: F
     target_type: "organization", target_id: auth.ctx.organization.id, metadata: parsed.data,
   });
   revalidatePath("/admin/settings");
+  revalidatePath("/admin/ai");
   return { ok: true, message: "AI Director settings saved." };
 }
 
@@ -308,6 +308,7 @@ export async function saveClaudeKey(_prev: ActionResult | null, formData: FormDa
   if (error) return { ok: false, message: "The key couldn't be saved. Please try again." };
   await admin.from("audit_log").insert({ organization_id: auth.ctx.organization.id, actor_id: auth.ctx.userId, action: "claude.key_set", target_type: "organization", target_id: auth.ctx.organization.id, metadata: { last4: key.slice(-4) } });
   revalidatePath("/admin/settings");
+  revalidatePath("/admin/ai");
   return { ok: true, message: `Claude API key saved (ends in ${key.slice(-4)}).` };
 }
 
@@ -318,6 +319,7 @@ export async function removeClaudeKey(): Promise<ActionResult> {
   await admin.from("organization_secrets").delete().eq("organization_id", auth.ctx.organization.id).eq("name", "anthropic_api_key");
   await admin.from("audit_log").insert({ organization_id: auth.ctx.organization.id, actor_id: auth.ctx.userId, action: "claude.key_removed", target_type: "organization", target_id: auth.ctx.organization.id, metadata: {} });
   revalidatePath("/admin/settings");
+  revalidatePath("/admin/ai");
   return { ok: true, message: "Claude API key removed." };
 }
 

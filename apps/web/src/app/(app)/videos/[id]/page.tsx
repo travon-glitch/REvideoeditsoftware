@@ -58,6 +58,11 @@ export default async function VideoPage({
     <div className="flex flex-col gap-6">
       <RefreshWhile active={(renders ?? []).some((r) => r.status === "queued" || r.status === "running")} />
       <Button variant="ghost" asChild className="self-start"><Link href="/videos"><ArrowLeft aria-hidden="true" />All videos</Link></Button>
+      {video.archived_at || video.locked ? (
+        <Alert variant="info"><AlertDescription>
+          {video.archived_at ? "This video is archived by the Super Admin. It's read-only." : "An administrator locked this video. It's read-only."}
+        </AlertDescription></Alert>
+      ) : null}
       <PageHeader
         title={video.title}
         description={listing ? `For ${listing.address_line}` : undefined}

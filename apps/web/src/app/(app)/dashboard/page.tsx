@@ -23,7 +23,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from("listings").select("id", { count: "exact", head: true }),
     supabase.from("video_projects").select("id", { count: "exact", head: true }).eq("status", "completed"),
     supabase.from("video_projects").select("id", { count: "exact", head: true }).in("status", ["draft", "generating", "ready_for_review", "rendering"]),
-    supabase.from("video_projects").select("id,title,status,updated_at").order("updated_at", { ascending: false }).limit(5),
+    supabase.from("video_projects").select("id,title,status,updated_at").is("archived_at", null).order("updated_at", { ascending: false }).limit(5),
   ]);
 
   const firstName = ctx.profile.full_name.split(" ")[0] || "there";

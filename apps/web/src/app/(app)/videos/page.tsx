@@ -18,7 +18,7 @@ export default async function VideosPage() {
   // The database returns only projects this person may see: their own, ones assigned to them, or all for admins.
   const [{ data: videos }, { data: mine }] = await Promise.all([
     supabase.from("video_projects").select("id,title,status,aspect_ratios,updated_at,created_by")
-      .neq("status", "archived").order("updated_at", { ascending: false }).limit(200),
+      .neq("status", "archived").is("archived_at", null).order("updated_at", { ascending: false }).limit(200),
     supabase.from("project_members").select("project_id,access").eq("user_id", ctx.userId),
   ]);
   const assigned = new Map((mine ?? []).map((m) => [m.project_id, m.access]));

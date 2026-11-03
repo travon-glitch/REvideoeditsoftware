@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/storage";
 import { parseCamera, signListingPhotos } from "@/lib/storage-server";
 import { currentPlan, loadProjectAssets } from "@/lib/video/editor-data";
-import { generativeProvider, studioActivity } from "@/lib/video/camera-store";
+import { aiAvailability, studioActivity } from "@/lib/video/camera-store";
 import { CameraStudio, type StudioProps } from "./studio";
 
 export const metadata = { title: "Camera Studio" };
@@ -62,7 +62,7 @@ export default async function CameraStudioPage({ searchParams }: { searchParams:
       initialMode={q.mode === "move" || q.mode === "easy" || q.mode === "advanced" ? q.mode : ctx.profile.ui_mode === "advanced" ? "advanced" : "easy"}
       scene={scene}
       canUseAi={ctx.profile.can_use_ai}
-      generative={generativeProvider()}
+      generative={(await aiAvailability(db)).generative}
       canDownload={ctx.profile.can_download}
       activity={activity as StudioProps["activity"]}
     />

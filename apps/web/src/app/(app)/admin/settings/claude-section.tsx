@@ -31,7 +31,7 @@ export function ClaudeSettingsForm({ settings }: { settings: OrganizationSetting
           <Input name="claude_daily_runs_per_user" inputMode="numeric" defaultValue={settings.claude_daily_runs_per_user ?? ""} />
         </Field>
       </div>
-      <p className="text-sm text-muted-foreground">Claude costs count toward the AI spending ceiling above. People also need “AI” allowed on their account.</p>
+      <p className="text-sm text-muted-foreground">Claude costs count toward the AI spending ceilings. People also need “AI” allowed on their account.</p>
       <SubmitButton size="lg" className="self-start">Save AI Director settings</SubmitButton>
     </form>
   );

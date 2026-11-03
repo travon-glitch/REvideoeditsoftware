@@ -35,6 +35,9 @@ export type OrganizationSettingsRow = {
   max_batch_size: number; concurrent_render_limit: number; daily_video_limit: number | null;
   claude_enabled: boolean; claude_model: string; claude_monthly_run_limit: number | null; claude_daily_runs_per_user: number | null;
   require_logo: boolean; require_disclosure: boolean; require_agent_card: boolean; lock_brand_fonts: boolean; lock_brand_colors: boolean;
+  ai_depth_motion_enabled: boolean; ai_voiceover_enabled: boolean; ai_captions_enabled: boolean;
+  video_ai_provider: "muapi"; video_ai_model: string; video_ai_clip_cost_cents: number;
+  daily_ai_budget_cents: number | null; ai_budget_alert_percent: number;
 };
 export type DirectorRunRow = {
   id: string; organization_id: string; listing_id: string | null; project_id: string | null; created_by: string | null;
@@ -94,6 +97,19 @@ export type VideoProjectRow = {
   aspect_ratios: string[]; settings: Json; document: Json | null; revision: number;
   thumbnail_path: string | null; created_at: string; updated_at: string; edit_plan: Json | null;
   batch_id: string | null; batch_type: string | null; batch_variation: number;
+  restricted: boolean; locked: boolean; archived_at: string | null; archived_by: string | null;
+};
+export type UserActivityRow = {
+  id: string; full_name: string; email: string; role: Role; status: string; job_title: string | null;
+  can_download: boolean; can_use_ai: boolean; can_batch_generate: boolean;
+  max_videos_per_month: number | null; max_ai_generations_per_month: number | null;
+  projects_owned: number; projects_assigned: number; listings_owned: number;
+  videos_rendered: number; videos_this_month: number; ai_jobs_this_month: number; ai_generations_total: number;
+  storage_bytes: number; last_activity_at: string | null; last_activity: string | null;
+};
+export type AiUsageRow = {
+  id: string; at: string; kind: "video_clip" | "depth_clip" | "director" | "voiceover" | "transcription"; provider: string; model: string;
+  user_id: string | null; status: string; cost_cents: number; error_message: string | null; project_id: string | null; listing_id: string | null;
 };
 export type ProjectRevisionRow = {
   project_id: string; revision: number; organization_id: string; document: Json; author_id: string | null;
@@ -150,7 +166,9 @@ export type Database = {
       organization_settings: Table<OrganizationSettingsRow, "organization_id",
         "ai_enabled" | "monthly_ai_budget_cents" | "default_max_videos_per_month" | "default_max_ai_generations_per_month" | "viewers_can_download_by_default" | "updated_by"
         | "max_batch_size" | "concurrent_render_limit" | "daily_video_limit"
-        | "claude_enabled" | "claude_model" | "claude_monthly_run_limit" | "claude_daily_runs_per_user">;
+        | "claude_enabled" | "claude_model" | "claude_monthly_run_limit" | "claude_daily_runs_per_user"
+        | "ai_depth_motion_enabled" | "ai_voiceover_enabled" | "ai_captions_enabled" | "video_ai_provider" | "video_ai_model"
+        | "video_ai_clip_cost_cents" | "daily_ai_budget_cents" | "ai_budget_alert_percent">;
       agent_profiles: Table<AgentProfileRow, "organization_id" | "name">;
       director_runs: Table<DirectorRunRow, "organization_id" | "style" | "model" | "photo_count">;
       organization_secrets: Table<OrganizationSecretRow, "organization_id" | "name" | "ciphertext" | "last4">;
@@ -201,6 +219,20 @@ export type Database = {
       start_video_batch: { Args: { p_listing_id: string; p_size: number; p_analysis?: Json; p_aspect?: string; p_planner?: string }; Returns: VideoBatchRow };
       my_generation_allowance: { Args: Record<PropertyKey, never>; Returns: Json };
       my_brand_rules: { Args: Record<PropertyKey, never>; Returns: Json };
+      provider_key_status: { Args: Record<PropertyKey, never>; Returns: Json };
+      my_ai_features: { Args: Record<PropertyKey, never>; Returns: Json };
+      start_local_ai: { Args: { p_kind: "voiceover" | "transcription"; p_project: string; p_model: string }; Returns: string };
+      finish_local_ai: { Args: { p_id: string; p_ok: boolean; p_error: string | null; p_details: Json }; Returns: undefined };
+      admin_set_project_access: { Args: { p_project: string; p_restricted: boolean; p_locked: boolean }; Returns: VideoProjectRow };
+      admin_archive_project: { Args: { p_project: string; p_archived: boolean }; Returns: VideoProjectRow };
+      admin_reassign_project: { Args: { p_project: string; p_new_owner: string }; Returns: VideoProjectRow };
+      admin_delete_project: { Args: { p_project: string; p_confirm_title: string }; Returns: Json };
+      admin_dashboard: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_user_activity: { Args: Record<PropertyKey, never>; Returns: UserActivityRow[] };
+      admin_ai_usage: { Args: { p_kind?: string | null; p_status?: string | null; p_user?: string | null; p_before?: string | null; p_limit?: number }; Returns: AiUsageRow[] };
+      admin_system_health: { Args: Record<PropertyKey, never>; Returns: Json };
+      record_admin_action: { Args: { p_action: string; p_meta: Json }; Returns: undefined };
+      worker_heartbeat: { Args: { p_worker: string; p_kind: "render" | "ai"; p_host: string; p_providers: string[]; p_job: string | null; p_done: number; p_error: string | null }; Returns: undefined };
       record_audio_authorization: { Args: { p_asset: string; p_purpose: string }; Returns: undefined };
       admin_set_brand_rules: { Args: { p_require_logo: boolean; p_require_disclosure: boolean; p_require_agent_card: boolean; p_lock_fonts: boolean; p_lock_colors: boolean }; Returns: undefined };
       admin_set_template_default: { Args: { p_template: string; p_statuses: ListingStatus[] }; Returns: undefined };

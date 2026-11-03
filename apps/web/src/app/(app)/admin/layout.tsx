@@ -6,9 +6,11 @@ import { can } from "@/lib/auth/roles";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requirePermission("admin.access");
   const tabs = [
-    { href: "/admin", label: "Overview" },
-    { href: "/admin/users", label: "Users" },
-    { href: "/admin/projects", label: "Company videos" },
+    { href: "/admin", label: "Dashboard" },
+    { href: "/admin/users", label: "People" },
+    { href: "/admin/library", label: "Video library" },
+    ...(can(ctx.profile.role, "settings.manage") ? [{ href: "/admin/ai", label: "AI control panel" }] : []),
+    { href: "/admin/health", label: "System health" },
     { href: "/admin/audit", label: "Activity log" },
     ...(can(ctx.profile.role, "branding.manage") ? [{ href: "/admin/branding", label: "Brand kit" }] : []),
     { href: "/admin/templates", label: "Templates" },

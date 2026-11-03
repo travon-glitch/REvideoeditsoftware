@@ -119,6 +119,15 @@ npm run worker
 - Each copy renders one video at a time; start more copies for more throughput. Stuck jobs are retried automatically.
 - Check it end to end with `npm run test:render -w @lvs/web` (renders real test videos, ~2 minutes).
 
+- Workers report a heartbeat every 30 seconds; Admin → System health shows them as online, quiet or stopped.
+
+## 8a. Video AI provider keys (Admin → AI control panel)
+
+The Super Admin saves the MuAPI key in **Admin → AI control panel**. It is stored encrypted and never shown again
+(only its last 4 characters). For the AI worker to use it, set the **same** `LVS_SECRETS_KEY` on the web server
+and on the AI worker (`npm start -w @lvs/ai-motion`). A key set on the worker itself (`MUAPI_API_KEY`) still works
+as a fallback; the company's saved key is used first.
+
 ## 8b. AI voiceovers and captions (on this server)
 
 Narration and subtitles run on the app server. No audio is sent anywhere else. Download the two models once
