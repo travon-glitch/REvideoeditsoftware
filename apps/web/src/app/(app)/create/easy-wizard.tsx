@@ -462,7 +462,7 @@ export function EasyWizard(props: WizardProps) {
           >
             {uploading ? <LoaderCircle className="size-14 animate-spin text-primary" aria-hidden="true" /> : <ImagePlus className="size-14 text-primary" aria-hidden="true" />}
             <span className="text-2xl font-bold">{uploading ? `Uploading ${uploading.done} of ${uploading.total}…` : "Drag your photos here"}</span>
-            <span className="text-lg text-muted-foreground">{uploading ? "Please keep this page open." : `or click to choose them · ${MIN_PHOTOS} to ${MAX_PHOTOS} photos · JPG, PNG, WebP or HEIC`}</span>
+            <span className="text-lg text-muted-foreground">{uploading ? "Please keep this page open." : `or click to choose them · ${MIN_PHOTOS} to ${MAX_PHOTOS} photos · JPG, PNG or WebP (iPhone photos convert automatically)`}</span>
             <input ref={fileInput} type="file" multiple accept={PHOTO_MIME_TYPES.join(",")} className="sr-only" aria-label="Choose photos to upload"
               disabled={!!uploading} onChange={(e) => void addFiles(e.target.files)} />
           </label>

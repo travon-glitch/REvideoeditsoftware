@@ -18,8 +18,12 @@ const newListing = async (as: Session, o = org) => (await as((tx) => tx.query<{ 
 const startBatch = (as: Session, size = 6, l = listing) => as((tx) => tx.query<{ id: string }>(`select (public.start_video_batch($1, $2)).id`, [l, size]));
 const newProject = (as: Session, batchId: string | null, o = org, l: string | null = listing) => as((tx) => tx.query<{ id: string }>(
   `insert into public.video_projects (organization_id, listing_id, created_by, title, batch_id, batch_type) values ($1, $2, auth.uid(), 'v', $3, 'luxury') returning id`, [o, l, batchId]));
-const queueRender = async (as: Session, project: string, o = org) => (await as((tx) => tx.query<{ id: string }>(
-  `insert into public.render_jobs (organization_id, project_id, revision, preset, requested_by, document) values ($1, $2, 1, 'master-1080p', auth.uid(), '{"clips":[]}') returning id`, [o, project]))).rows[0]!.id;
+/** Renders are queued by the app server (service role) on the person's behalf, after its own checks. */
+const queueRender = async (as: Session, project: string, o = org) => {
+  const uid = (await as((tx) => tx.query<{ u: string }>(`select auth.uid()::text u`))).rows[0]!.u;
+  return (await worker((tx) => tx.query<{ id: string }>(
+    `insert into public.render_jobs (organization_id, project_id, revision, preset, requested_by, document) values ($1, $2, 1, 'master-1080p', $3, '{"clips":[]}') returning id`, [o, project, uid]))).rows[0]!.id;
+};
 const claim = async () => (await worker((tx) => tx.query<{ id: string | null; organization_id: string | null }>(`select (j).id, (j).organization_id from (select public.claim_render_job('w') j) s`))).rows[0]!;
 
 beforeAll(async () => {

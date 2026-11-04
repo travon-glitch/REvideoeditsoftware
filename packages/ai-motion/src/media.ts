@@ -12,7 +12,7 @@ export interface Rgb { width: number; height: number; data: Uint8Array }
  */
 export function decodeCover(file: string, width: number, height: number): Rgb {
   const vf = `scale=${width}:${height}:force_original_aspect_ratio=increase:flags=lanczos,crop=${width}:${height}`;
-  const r = spawnSync(FFMPEG, ["-v", "error", "-i", file, "-frames:v", "1", "-vf", vf, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+  const r = spawnSync(FFMPEG, ["-v", "error", "-protocol_whitelist", "file", "-i", file, "-frames:v", "1", "-vf", vf, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
     { maxBuffer: width * height * 3 + 1024 });
   if (r.status !== 0 || r.stdout.length !== width * height * 3) throw new Error(`Could not read the photo: ${String(r.stderr).slice(0, 200)}`);
   return { width, height, data: new Uint8Array(r.stdout.buffer, r.stdout.byteOffset, r.stdout.length) };
@@ -20,7 +20,7 @@ export function decodeCover(file: string, width: number, height: number): Rgb {
 
 /** Decodes the whole image squashed to an exact size (for the depth network input). */
 export function decodeStretch(file: string, width: number, height: number): Rgb {
-  const r = spawnSync(FFMPEG, ["-v", "error", "-i", file, "-frames:v", "1", "-vf", `scale=${width}:${height}:flags=bicubic`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+  const r = spawnSync(FFMPEG, ["-v", "error", "-protocol_whitelist", "file", "-i", file, "-frames:v", "1", "-vf", `scale=${width}:${height}:flags=bicubic`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
     { maxBuffer: width * height * 3 + 1024 });
   if (r.status !== 0) throw new Error(`Could not read the photo: ${String(r.stderr).slice(0, 200)}`);
   return { width, height, data: new Uint8Array(r.stdout.buffer, r.stdout.byteOffset, r.stdout.length) };
@@ -28,7 +28,7 @@ export function decodeStretch(file: string, width: number, height: number): Rgb 
 
 export interface ImageSize { width: number; height: number }
 export function imageSize(file: string): ImageSize {
-  const r = spawnSync(FFPROBE, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", file], { encoding: "utf8" });
+  const r = spawnSync(FFPROBE, ["-v", "error", "-protocol_whitelist", "file", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", file], { encoding: "utf8" });
   const [w, h] = r.stdout.trim().split(",").map(Number);
   if (!w || !h) throw new Error("Could not read the photo size");
   return { width: w, height: h };
@@ -63,7 +63,7 @@ export class Mp4Writer {
 
 export interface VideoInfo { width: number; height: number; durationSeconds: number; fps: number; codec: string; sizeBytes?: number }
 export function probeVideo(file: string): VideoInfo {
-  const r = spawnSync(FFPROBE, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,codec_name,r_frame_rate:format=duration",
+  const r = spawnSync(FFPROBE, ["-v", "error", "-protocol_whitelist", "file", "-select_streams", "v:0", "-show_entries", "stream=width,height,codec_name,r_frame_rate:format=duration",
     "-of", "json", file], { encoding: "utf8" });
   const j = JSON.parse(r.stdout || "{}") as { streams?: { width: number; height: number; codec_name: string; r_frame_rate: string }[]; format?: { duration: string } };
   const s = j.streams?.[0];

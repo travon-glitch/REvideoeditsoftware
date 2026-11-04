@@ -1,4 +1,5 @@
 "use client";
+import { jobErrorForPeople } from "@/lib/video/job-errors";
 import { useMemo, useState } from "react";
 import { Check, Download, Film, LoaderCircle, Music, RefreshCw, Sparkles, Star, Type, Upload } from "lucide-react";
 import { STILL_NAME, getMove } from "@lvs/camera-presets";
@@ -254,7 +255,7 @@ export function RenderPanel({
       {latest.status === "failed" || latest.status === "cancelled" ? (
         <Alert variant="destructive">
           <AlertDescription className="flex flex-wrap items-center gap-3 text-base">
-            Sorry — the video didn&apos;t finish. {latest.error_message ? `(${latest.error_message})` : ""}
+            Sorry — the video didn&apos;t finish. {jobErrorForPeople(latest.error_message)}
             <Button size="sm" variant="outline" onClick={onRetry}><RefreshCw aria-hidden="true" />Try again</Button>
           </AlertDescription>
         </Alert>

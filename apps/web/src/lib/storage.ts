@@ -12,7 +12,11 @@ export const BUCKETS = {
 } as const;
 export type BucketName = (typeof BUCKETS)[keyof typeof BUCKETS];
 
-export const PHOTO_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
+/*
+ * HEIC/HEIF (the iPhone camera format) isn't accepted: the video renderer (Chrome) and most browsers can't
+ * show it. iPhones and iPads convert photos to JPG automatically when the upload doesn't list HEIC.
+ */
+export const PHOTO_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const LOGO_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
 export const MAX_PHOTO_BYTES = 50 * 1024 * 1024;
 export const MAX_LOGO_BYTES = 10 * 1024 * 1024;
@@ -40,7 +44,9 @@ export type FileCheck = { ok: true } | { ok: false; reason: string };
 
 export function checkPhotoFile(file: { type: string; size: number }): FileCheck {
   if (!(PHOTO_MIME_TYPES as readonly string[]).includes(file.type)) {
-    return { ok: false, reason: "Please use JPG, PNG, WebP or HEIC photos." };
+    return { ok: false, reason: /hei[cf]/i.test(file.type)
+      ? "This photo is in Apple's HEIC format, which videos can't use. On an iPhone, upload straight from Photos (it converts to JPG). On a Mac, open it in Preview and choose File → Export → JPEG."
+      : "Please use JPG, PNG or WebP photos." };
   }
   if (file.size <= 0) return { ok: false, reason: "This file is empty." };
   if (file.size > MAX_PHOTO_BYTES) return { ok: false, reason: "Photos must be 50 MB or smaller." };

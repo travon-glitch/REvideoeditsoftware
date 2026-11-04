@@ -22,11 +22,16 @@ export function ProfileForm({ firstName, lastName }: { firstName: string; lastNa
   );
 }
 
-export function PasswordForm({ submitLabel = "Save new password" }: { submitLabel?: string }) {
+export function PasswordForm({ submitLabel = "Save new password", askCurrent = false }: { submitLabel?: string; askCurrent?: boolean }) {
   const [state, action] = useActionState(setPassword, null);
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>
       <FormMessage state={state} />
+      {askCurrent ? (
+        <Field label="Current password" htmlFor="current_password" error={errorFor(state, "current_password")}>
+          <Input name="current_password" type="password" autoComplete="current-password" required />
+        </Field>
+      ) : null}
       <Field label="New password" htmlFor="password" hint="At least 12 characters, with upper- and lowercase letters and a number." error={errorFor(state, "password")}>
         <Input name="password" type="password" autoComplete="new-password" required />
       </Field>

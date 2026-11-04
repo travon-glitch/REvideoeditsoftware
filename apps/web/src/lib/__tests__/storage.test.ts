@@ -30,7 +30,11 @@ describe("storage paths", () => {
 
 describe("file checks", () => {
   it("allow photos, refuse SVG, empty and huge files", () => {
-    expect(checkPhotoFile({ type: "image/heic", size: 1000 }).ok).toBe(true);
+    expect(checkPhotoFile({ type: "image/webp", size: 1000 }).ok).toBe(true);
+    // HEIC can't be shown by the renderer (Chrome): refused with instructions to send JPG
+    const heic = checkPhotoFile({ type: "image/heic", size: 1000 });
+    expect(heic.ok).toBe(false);
+    expect(!heic.ok && heic.reason).toMatch(/JPG/);
     expect(checkPhotoFile({ type: "image/svg+xml", size: 1000 }).ok).toBe(false);
     expect(checkPhotoFile({ type: "image/jpeg", size: 0 }).ok).toBe(false);
     expect(checkPhotoFile({ type: "image/jpeg", size: 51 * 1024 * 1024 }).ok).toBe(false);

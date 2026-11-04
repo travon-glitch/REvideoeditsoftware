@@ -158,12 +158,27 @@ describe.skipIf(!hasTools || !models.tts || !models.asr)("Stage 12 acceptance: p
     const file = ctx.files["9:16"]!;
     const { width, height } = CANVAS_1080["9:16"];
     const W = 108, H = 192;
-    const sources = ctx.fx.photos.slice(0, 6).map((p) => ({ id: p.row.id, gray: smallGray(decodeCover(p.file, width, height)) }));
+    // The test photos are the same synthetic room in different hues, so grayscale structure alone can't tell
+    // them apart under the caption bar: match on structure (SSIM) AND colour of the caption-free top 40%.
+    const topColour = (rgb: Uint8Array, w: number, h: number) => {
+      const sum = [0, 0, 0]; let n = 0;
+      for (let y = 0; y < Math.floor(h * 0.4); y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 3; sum[0]! += rgb[i]!; sum[1]! += rgb[i + 1]!; sum[2]! += rgb[i + 2]!; n++; }
+      return sum.map((v) => v / n);
+    };
+    const sources = ctx.fx.photos.slice(0, 6).map((p) => {
+      const small = decodeCover(p.file, W, H);
+      return { id: p.row.id, gray: smallGray(decodeCover(p.file, width, height)), colour: topColour(small.data, W, H) };
+    });
     const starts = sceneStarts(ctx.plan);
     for (const s of ctx.plan.scenes) {
       const mid = starts.get(s.id)! + s.duration / 2;
-      const frame = smallGray({ width: W, height: H, data: frameAt(file, mid, W, H) });
-      const scores = sources.map((src) => ({ id: src.id, v: ssim(frame, src.gray) }));
+      const rgb = frameAt(file, mid, W, H);
+      const frame = smallGray({ width: W, height: H, data: rgb });
+      const c = topColour(rgb, W, H);
+      const scores = sources.map((src) => ({
+        id: src.id,
+        v: ssim(frame, src.gray) - Math.hypot(c[0]! - src.colour[0]!, c[1]! - src.colour[1]!, c[2]! - src.colour[2]!) / 255,
+      }));
       const best = scores.sort((a, b) => b.v - a.v)[0]!;
       expect(best.id, `scene ${s.id} at ${mid.toFixed(1)} s`).toBe(s.assetId);
     }

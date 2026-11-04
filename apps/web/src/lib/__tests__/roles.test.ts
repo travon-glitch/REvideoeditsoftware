@@ -76,7 +76,10 @@ describe("navigation", () => {
   it("shows the Admin Panel only to administrators", () => {
     expect(navForRole("editor").map((n) => n.href)).not.toContain("/admin");
     expect(navForRole("admin").map((n) => n.href)).toContain("/admin");
-    expect(navForRole("super_admin").length).toBe(10);
+    // AI Effects isn't built yet, so it's never in the menu; Camera Studio is in Advanced Mode only
+    expect(navForRole("super_admin").length).toBe(9);
+    expect(navForRole("editor", "easy").map((n) => n.href)).toEqual(["/dashboard", "/create", "/generate", "/listings", "/videos", "/library", "/templates"]);
+    expect(navForRole("editor", "advanced").map((n) => n.href)).toContain("/camera-studio");
   });
 
   it("hides creation tools from viewers", () => {

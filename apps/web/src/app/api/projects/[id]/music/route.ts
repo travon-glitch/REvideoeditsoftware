@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { apiAuth, jsonError, readJson } from "@/lib/api";
 import { createClient } from "@/lib/supabase/server";
+import { AUDIO_KINDS, sniffStoredFile } from "@/lib/storage-sniff";
 import { BUCKETS, MAX_MUSIC_BYTES, MUSIC_MIME_TYPES, cleanFileName, isProjectMusicPathFor, isUuid } from "@/lib/storage";
 
 type Params = { params: Promise<{ id: string }> };
@@ -35,6 +36,11 @@ export async function POST(request: NextRequest, { params }: Params) {
   const folder = `${orgId}/projects/${id}`;
   const { data: objects } = await db.storage.from(BUCKETS.projectMedia).list(folder, { limit: 1000 });
   if (!(objects ?? []).some((o) => `${folder}/${o.name}` === f.path)) return jsonError(400, "The music didn't finish uploading.");
+  // the file's real content must be audio (FFmpeg and the renderer decide by content, not by the declared type)
+  if (!AUDIO_KINDS.includes((await sniffStoredFile(db, BUCKETS.projectMedia, f.path))!)) {
+    await db.storage.from(BUCKETS.projectMedia).remove([f.path]);
+    return jsonError(400, "That file isn't a real MP3, M4A, AAC or WAV audio file.");
+  }
 
   const { data, error } = await db.from("media_assets").insert({
     organization_id: orgId, project_id: id, uploaded_by: auth.ctx.userId, kind: "audio", bucket: BUCKETS.projectMedia,

@@ -19,6 +19,9 @@ import { BUCKETS } from "@/lib/storage";
 import type { Cue, Voiceover } from "@/lib/video/plan";
 import type { StoreResult } from "@/lib/video/project-store";
 import type { Json } from "@/lib/database.types";
+import { FFMPEG_FORMAT, isAudioKind, sniffMedia } from "@lvs/render-worker/sniff";
+
+class NotAudioError extends Error {}
 import { checkNarration } from "@/lib/video/narration";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -50,10 +53,13 @@ async function toM4a(wav: Uint8Array): Promise<Buffer> {
 
 /** Any audio file → 16 kHz mono samples for speech recognition. */
 async function decodeForAsr(bytes: Uint8Array): Promise<{ samples: Float32Array; sampleRate: number }> {
+  // FFmpeg must never guess the format of an uploaded file (a "song" could be a playlist that reads other files)
+  const kind = sniffMedia(bytes);
+  if (!isAudioKind(kind)) throw new NotAudioError();
   const dir = await mkdtemp(join(tmpdir(), "lvs-asr-"));
   try {
     await writeFile(join(dir, "in"), bytes);
-    const wav = await ffmpeg(["-i", join(dir, "in"), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "wav", "pipe:1"]);
+    const wav = await ffmpeg(["-protocol_whitelist", "file,pipe", "-f", FFMPEG_FORMAT[kind!], "-i", join(dir, "in"), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "wav", "pipe:1"]);
     return readWav(new Uint8Array(wav));
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
@@ -171,7 +177,12 @@ export async function transcribeProjectAudio(db: Db, projectId: string, assetId:
 async function listen(db: Db, asset: { bucket: string; storage_path: string }, script?: string): Promise<StoreResult<{ cues: Cue[]; text: string }>> {
   const { data: file } = await db.storage.from(asset.bucket).download(asset.storage_path);
   if (!file) return { ok: false, status: 404, message: "The audio file couldn't be read." };
-  const { samples, sampleRate } = await decodeForAsr(new Uint8Array(await file.arrayBuffer()));
+  let decoded: { samples: Float32Array; sampleRate: number };
+  try { decoded = await decodeForAsr(new Uint8Array(await file.arrayBuffer())); } catch (e) {
+    if (e instanceof NotAudioError) return { ok: false, status: 400, message: "That file isn't a real MP3, M4A, AAC or WAV recording." };
+    throw e;
+  }
+  const { samples, sampleRate } = decoded;
   const heard = transcribe(samples, sampleRate);
   if (!heard.length) return { ok: false, status: 400, message: "No speech was found in that audio." };
   // with a script: written words at the heard times; without: what was heard, as sentences

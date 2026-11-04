@@ -172,11 +172,13 @@ describe.skipIf(!hasTools)("Stage 11 acceptance: Just Listed template on a real 
     expect(clips.some((c) => c.id === "c_brand_headshot")).toBe(true);
     ctx.doc = doc;
 
-    // saved as Alice: the project and its render job (RLS)
+    // saved as Alice: the project (RLS); the render job is queued by the app server on her behalf
     ctx.projectId = (await alice((tx) => tx.query<{ id: string }>(`insert into public.video_projects (organization_id, listing_id, template_id, created_by, title, aspect_ratios, edit_plan, document, revision)
       values ($1, $2, $3, auth.uid(), 'Just Listed — 742 Evergreen Terrace', '{9:16}', $4, $5, 1) returning id`, [ctx.org, ctx.listingId, justListed.id, JSON.stringify(plan), JSON.stringify(doc)]))).rows[0]!.id;
-    ctx.jobId = (await alice((tx) => tx.query<{ id: string }>(`insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by, label)
-      values ($1, $2, 1, 'master-1080p', '9:16', $3, auth.uid(), 'Just Listed') returning id`, [ctx.org, ctx.projectId, JSON.stringify(doc)]))).rows[0]!.id;
+    await rejects(alice((tx) => tx.query(`insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
+      values ($1, $2, 1, 'master-1080p', '9:16', $3, auth.uid())`, [ctx.org, ctx.projectId, JSON.stringify(doc)])), /permission denied/);
+    ctx.jobId = (await server(ctx.db)((tx) => tx.query<{ id: string }>(`insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by, label)
+      values ($1, $2, 1, 'master-1080p', '9:16', $3, $4, 'Just Listed') returning id`, [ctx.org, ctx.projectId, JSON.stringify(doc), ctx.ids.alice]))).rows[0]!.id;
   });
 
   it("renders the final video in the background worker and the agent downloads it", async () => {

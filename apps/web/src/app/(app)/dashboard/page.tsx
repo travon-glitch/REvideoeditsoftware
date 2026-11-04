@@ -27,7 +27,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   ]);
 
   const firstName = ctx.profile.full_name.split(" ")[0] || "there";
-  const shortcuts = navForRole(ctx.profile.role).filter((n) => !["/dashboard", "/create"].includes(n.href));
+  const shortcuts = navForRole(ctx.profile.role, ctx.profile.ui_mode).filter((n) => !["/dashboard", "/create"].includes(n.href));
   const stats = [
     { label: "Listings", value: listings.count ?? 0, href: "/listings" },
     { label: "Videos in progress", value: inProgress.count ?? 0, href: "/videos" },

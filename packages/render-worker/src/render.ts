@@ -13,6 +13,7 @@
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, rm, stat, copyFile, readdir } from "node:fs/promises";
+import { renameSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
@@ -67,6 +68,32 @@ async function freePort(): Promise<number> {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Loudness every finished video is brought to: -14 LUFS (what Instagram, TikTok, YouTube and Facebook play at). */
+export const TARGET_LUFS = -14;
+
+/**
+ * Evens out loudness between videos (one template's music can be far quieter than another's). Two passes:
+ * measure, then apply one constant gain (linear mode), so the balance between narration and music,
+ * fades and ducking are unchanged. The video stream is copied untouched. If anything fails, the
+ * original file is kept — loudness must never cost someone their video.
+ */
+export function normalizeLoudness(mp4Path: string): boolean {
+  const filter = `loudnorm=I=${TARGET_LUFS}:TP=-1.5:LRA=11`;
+  const measure = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", mp4Path, "-vn", "-af", `${filter}:print_format=json`, "-f", "null", "-"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  const json = /\{[^{}]*"input_i"[^{}]*\}/.exec(measure.stderr ?? "")?.[0];
+  if (measure.status !== 0 || !json) return false;
+  const m = JSON.parse(json) as Record<string, string>;
+  const inputI = Number(m.input_i);
+  if (!Number.isFinite(inputI) || inputI < -70) return false; // silent: nothing to adjust
+  const out = `${mp4Path}.loud.mp4`;
+  const r = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-y", "-i", mp4Path, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy",
+    "-af", `${filter}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`,
+    "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  if (r.status !== 0) { rmSync(out, { force: true }); return false; }
+  renameSync(out, mp4Path);
+  return true;
+}
 
 export function probe(file: string): { width: number; height: number; durationSeconds: number; hasAudio: boolean } {
   const r = spawnSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration", "-of", "json", file], { encoding: "utf8" });
@@ -156,6 +183,7 @@ export async function renderDocument(input: RenderInput): Promise<RenderResult> 
         const outputs = (await readdir(join(work, "exports"))).filter((f) => f.toLowerCase().endsWith(".mp4"));
         if (outputs.length !== 1) throw new Error(`Expected one MP4, found ${outputs.length}`);
         const mp4Path = join(work, "exports", outputs[0]!);
+        if (probe(mp4Path).hasAudio) normalizeLoudness(mp4Path);
         const info = probe(mp4Path);
         const size = (await stat(mp4Path)).size;
         input.onProgress?.(1);

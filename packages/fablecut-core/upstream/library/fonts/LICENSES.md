@@ -2,7 +2,8 @@
 
 All fonts in this folder were downloaded from [Google Fonts](https://fonts.google.com)
 and are redistributed under the **SIL Open Font License 1.1** (OFL). Each family's
-license text and author information are available on its Google Fonts page.
+full license text with its copyright line is in `licenses/<Family>.txt` (fetched from
+the official google/fonts repository, `ofl/<family>/OFL.txt`, on 2026-11-04).
 
 | Family | Google Fonts page |
 | --- | --- |

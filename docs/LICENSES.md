@@ -17,7 +17,7 @@ The product is **private and company-owned** (proprietary). Therefore:
 | Repo @ revision | Declared licence | Licence file present? | Verdict |
 |---|---|---|---|
 | FableCut @ `579b08e` | MIT (`package.json` + `LICENSE`, © 2026 ronak-create) | ✅ | **Compatible.** Vendor with LICENSE retained. |
-| FableCut `library/fonts/*.woff2` (20 families) | SIL OFL 1.1 (`library/fonts/LICENSES.md`) | ⚠ Summary file only; per-family OFL texts not bundled | **Compatible.** Must ship the full OFL text + copyright line per family (fetch from Google Fonts) — OFL requires the licence accompany the font. Fonts may not be sold on their own. |
+| FableCut `library/fonts/*.woff2` (20 families) | SIL OFL 1.1 (`library/fonts/LICENSES.md`) | ✅ Full OFL text + copyright line per family bundled in `library/fonts/licenses/` (Stage 14) | **Compatible.** Fonts may not be sold on their own. |
 | FableCut `library/svg`, `library/elements` | Repo MIT (stated self-authored) | ✅ (repo) | Compatible. |
 | avoltaire/open-generative-ai @ `958897e` | "MIT" stated only in README and `packages/studio/package.json` | ❌ **No LICENSE file** at this revision | **Do not copy from the fork.** A README line without the licence text/copyright notice is an incomplete grant. |
 | Anil-matcha/Open-Generative-AI @ `84b29a5` (upstream) | MIT, "© 2026 Open Generative AI Contributors" | ✅ Added in commit `1ff3667` (2026-06-12, "Add root MIT license metadata") | **Compatible.** The fork's history is a strict ancestor of this commit, so the same code is available under an explicit MIT grant here. **Source any reused code from the upstream at ≥ `1ff3667`**, cite the upstream commit, keep the MIT notice. |
@@ -95,3 +95,8 @@ Create `THIRD_PARTY_NOTICES.md` (and an in-app "Open-source licences" page) cont
 | Component | Licence | How it is used | Verdict |
 |---|---|---|---|
 | `@anthropic-ai/sdk` 1.4.0 (official Anthropic TypeScript SDK) | MIT | Server-side calls to the Claude API (photo interpretation, storyboard) | Compatible. Use of the Claude API is governed by Anthropic's commercial terms, accepted by the company when it creates its API key. |
+
+## Stage 14 update (2026-11-04)
+
+- The full OFL text and copyright line for each of the 20 FableCut font families are bundled in `packages/fablecut-core/upstream/library/fonts/licenses/`.
+- Production npm dependencies were re-scanned. All are permissive except `@img/sharp-libvips` (LGPL-3.0-or-later, prebuilt and unmodified, loaded by Next's image optimizer), which is fine for internal use with the notice kept. See `docs/STAGE14.md` §6.

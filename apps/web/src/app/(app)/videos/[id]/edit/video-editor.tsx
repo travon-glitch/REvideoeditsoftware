@@ -7,6 +7,7 @@
  *              AI clip insertion, AI narration, captions, music controls, undo / redo.
  * Every change autosaves (with a revision check) and can be undone.
  */
+import { jobErrorForPeople } from "@/lib/video/job-errors";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleCheck, Copy, Diamond, Download, LoaderCircle, Plus, Scissors, Sparkles, Trash2, TriangleAlert, Type, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,7 +69,17 @@ export function VideoEditor({
   const latest = useRef(plan);
   latest.current = plan;
 
-  const photoUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, p.url])), [photos]);
+  // On phones and small tablets the preview uses the upload's preview image instead of the full-size original:
+  // 20+ megapixel photos decoded at every scene change are what runs mobile browsers out of memory.
+  // The finished video always uses the originals.
+  const [lightPreview, setLightPreview] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const on = () => setLightPreview(mq.matches);
+    on(); mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const photoUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, (lightPreview && p.thumb) || p.url])), [photos, lightPreview]);
   const thumbUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, p.thumb ?? p.url ?? null])), [photos]);
   const clipUrls = useMemo(() => Object.fromEntries(clips.map((c) => [c.id, c.url])), [clips]);
   const total = totalDuration(plan);
@@ -359,7 +370,7 @@ export function RenderList({ projectId, renders, canDownload }: { projectId: str
               </span>
             ) : null}
             {r.status === "succeeded" ? `Ready · ${r.width}×${r.height} · ${Math.round(r.duration_seconds ?? 0)} s` : null}
-            {r.status === "failed" ? <span className="text-destructive">Didn&apos;t finish: {r.error_message ?? "unknown problem"}</span> : null}
+            {r.status === "failed" ? <span className="text-destructive">Didn&apos;t finish: {jobErrorForPeople(r.error_message)}</span> : null}
           </span>
           {r.status === "succeeded" && canDownload ? (
             <Button asChild size="sm"><a href={`/api/projects/${projectId}/renders/${r.id}/download`}><Download aria-hidden="true" />Download</a></Button>

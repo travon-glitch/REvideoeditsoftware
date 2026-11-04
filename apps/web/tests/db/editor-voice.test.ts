@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import { beforeAll, describe, expect, it } from "vitest";
-import { company, freshDatabase, rejects, signedIn, type Session } from "./helpers";
+import { company, freshDatabase, rejects, server, signedIn, type Session } from "./helpers";
 
 let db: PGlite;
 let org = "", project = "";
@@ -29,7 +29,8 @@ describe("Stage 12", () => {
     expect(log.rows).toEqual([{ action: "narration.upload", actor_id: ids.alice }]);
   });
   it("portrait 4:5 renders can be queued; other shapes can't", async () => {
-    await alice((tx) => tx.query(`insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by) values ($1, $2, 1, 'master-1080p', '4:5', $3, auth.uid())`, [org, project, JSON.stringify(doc)]));
-    await rejects(alice((tx) => tx.query(`insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by) values ($1, $2, 1, 'master-1080p', '3:2', $3, auth.uid())`, [org, project, JSON.stringify(doc)])), /check constraint/);
+    const svc = server(db);
+    await svc((tx) => tx.query(`insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by) values ($1, $2, 1, 'master-1080p', '4:5', $3, $4)`, [org, project, JSON.stringify(doc), ids.alice]));
+    await rejects(svc((tx) => tx.query(`insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by) values ($1, $2, 1, 'master-1080p', '3:2', $3, $4)`, [org, project, JSON.stringify(doc), ids.alice])), /check constraint/);
   });
 });

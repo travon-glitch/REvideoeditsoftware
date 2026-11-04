@@ -47,22 +47,29 @@ describe("project music", () => {
 describe("render queue", () => {
   let jobId = "";
 
-  it("editors queue renders only for projects they can edit, with a real document", async () => {
-    jobId = (await alice((tx) => tx.query<{ id: string }>(
+  it("renders are queued only by the app server, within size limits; people can't insert them directly", async () => {
+    // even the project's owner can't write a render job straight to the database (the server applies branding first)
+    for (const who of [alice, bob, vera]) {
+      await rejects(who((tx) => tx.query(
+        `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
+         values ($1, $2, 1, 'master-1080p', '9:16', $3, auth.uid())`, [org, projectA, JSON.stringify(doc)])), /permission denied/);
+    }
+    jobId = (await svc((tx) => tx.query<{ id: string }>(
       `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
-       values ($1, $2, 1, 'master-1080p', '9:16', $3, auth.uid()) returning id`, [org, projectA, JSON.stringify(doc)]))).rows[0]!.id;
-    await rejects(bob((tx) => tx.query(
+       values ($1, $2, 1, 'master-1080p', '9:16', $3, $4) returning id`, [org, projectA, JSON.stringify(doc), ids.alice]))).rows[0]!.id;
+    await rejects(svc((tx) => tx.query(
       `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
-       values ($1, $2, 1, 'x', '16:9', $3, auth.uid())`, [org, projectA, JSON.stringify(doc)])), /row-level security/);
-    await rejects(vera((tx) => tx.query(
+       values ($1, $2, 1, 'x', '5:4', $3, $4)`, [org, projectA, JSON.stringify(doc), ids.alice])), /check constraint/);
+    // size limits hold for every render, whoever queues it
+    await rejects(svc((tx) => tx.query(
       `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
-       values ($1, $2, 1, 'x', '16:9', $3, auth.uid())`, [org, projectA, JSON.stringify(doc)])), /row-level security/);
-    await rejects(alice((tx) => tx.query(
-      `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by, status, output_path)
-       values ($1, $2, 1, 'x', '16:9', $3, auth.uid(), 'succeeded', 'x')`, [org, projectA, JSON.stringify(doc)])), /row-level security/);
-    await rejects(alice((tx) => tx.query(
+       values ($1, $2, 1, 'x', '16:9', $3, $4)`, [org, projectA, JSON.stringify({ ...doc, width: 4096, height: 4096 }), ids.alice])), /too large/);
+    await rejects(svc((tx) => tx.query(
       `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
-       values ($1, $2, 1, 'x', '5:4', $3, auth.uid())`, [org, projectA, JSON.stringify(doc)])), /check constraint/);
+       values ($1, $2, 1, 'x', '16:9', $3, $4)`, [org, projectA, JSON.stringify({ ...doc, fps: 120 }), ids.alice])), /too large/);
+    await rejects(svc((tx) => tx.query(
+      `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
+       values ($1, $2, 1, 'x', '16:9', $3, $4)`, [org, projectA, JSON.stringify({ ...doc, clips: [{ id: "c", kind: "text", start: 0, duration: 900, track: "V1" }] }), ids.alice])), /too long/);
   });
 
   it("only the worker (service role) can claim jobs, oldest first, one at a time", async () => {
@@ -84,9 +91,9 @@ describe("render queue", () => {
   });
 
   it("a finished render is recorded, marks the project complete, and is audited", async () => {
-    const id = (await alice((tx) => tx.query<{ id: string }>(
+    const id = (await svc((tx) => tx.query<{ id: string }>(
       `insert into public.render_jobs (organization_id, project_id, revision, preset, aspect, document, requested_by)
-       values ($1, $2, 1, 'master-1080p', '16:9', $3, auth.uid()) returning id`, [org, projectA, JSON.stringify(doc)]))).rows[0]!.id;
+       values ($1, $2, 1, 'master-1080p', '16:9', $3, $4) returning id`, [org, projectA, JSON.stringify(doc), ids.alice]))).rows[0]!.id;
     await svc((tx) => tx.query(`select public.claim_render_job('worker-1')`));
     const path = `${org}/projects/${projectA}/${id}.mp4`;
     await svc(async (tx) => {

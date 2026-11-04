@@ -25,9 +25,9 @@ describe("safeRedirectPath", () => {
 });
 
 describe("route access", () => {
-  it("only sign-in, password reset, email links and setup are public", () => {
-    for (const p of ["/login", "/forgot-password", "/auth/confirm", "/setup"]) expect(isPublicPath(p)).toBe(true);
-    for (const p of ["/", "/dashboard", "/admin", "/admin/team", "/listings/1", "/loginx", "/setup-other", "/no-access"]) {
+  it("only sign-in, password reset, email links, setup and the uptime check are public", () => {
+    for (const p of ["/login", "/forgot-password", "/auth/confirm", "/setup", "/healthz"]) expect(isPublicPath(p)).toBe(true);
+    for (const p of ["/", "/dashboard", "/admin", "/admin/team", "/listings/1", "/loginx", "/setup-other", "/no-access", "/healthzx", "/api/admin/ai-usage"]) {
       expect(isPublicPath(p)).toBe(false);
     }
     expect(isSignedOutOnlyPath("/login")).toBe(true);

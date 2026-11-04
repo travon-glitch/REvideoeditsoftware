@@ -1,4 +1,5 @@
 "use client";
+import { jobErrorForPeople } from "@/lib/video/job-errors";
 import { useState } from "react";
 import { CircleCheck, Download, Flag, LoaderCircle, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,7 @@ export function ClipsPanel({
               <span className="flex-1 text-muted-foreground">
                 {j.status === "queued" ? "Waiting for the AI worker…" : null}
                 {j.status === "running" ? `Making it… ${Math.round(Number(j.progress) * 100)}%` : null}
-                {j.status === "failed" ? <span className="text-destructive">Didn&apos;t finish: {j.error_message}</span> : null}
+                {j.status === "failed" ? <span className="text-destructive">Didn&apos;t finish: {jobErrorForPeople(j.error_message)}</span> : null}
               </span>
               {busy(j.status) ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : null}
             </li>
@@ -79,7 +80,7 @@ export function ClipsPanel({
                   <span className="flex-1 text-muted-foreground">
                     {r.status === "queued" ? "Waiting to start…" : r.status === "running" ? `Rendering… ${Math.round(Number(r.progress) * 100)}%`
                       : r.status === "succeeded" ? `${r.width}×${r.height} · ${Number(r.duration_seconds ?? 0).toFixed(1)} s · ${formatDateTime(r.created_at)}`
-                      : `Didn't finish: ${r.error_message ?? "unknown problem"}`}
+                      : `Didn't finish: ${jobErrorForPeople(r.error_message)}`}
                   </span>
                   {r.status === "succeeded" && canDownload && clipProject ? (
                     <Button asChild size="sm"><a href={`/api/projects/${clipProject}/renders/${r.id}/download`}><Download aria-hidden="true" />Download MP4</a></Button>

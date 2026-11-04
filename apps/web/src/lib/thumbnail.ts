@@ -1,6 +1,6 @@
 "use client";
 
-/** Makes a small JPEG preview (longest side 480 px). Returns null if the browser can't read the image (e.g. HEIC). */
+/** Makes a small JPEG preview (longest side `maxSide` px). Returns null if the browser can't read the image. */
 export async function makeThumbnail(file: Blob, maxSide = 480): Promise<Blob | null> {
   try {
     const bmp = await createImageBitmap(file);

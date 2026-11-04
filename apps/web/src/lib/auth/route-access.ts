@@ -1,5 +1,5 @@
 /** Paths reachable without signing in. Everything else is protected. */
-const PUBLIC_PREFIXES = ["/login", "/forgot-password", "/auth/", "/setup"] as const;
+const PUBLIC_PREFIXES = ["/login", "/forgot-password", "/auth/", "/setup", "/healthz"] as const;
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => (p.endsWith("/") ? pathname.startsWith(p) : pathname === p || pathname.startsWith(`${p}/`)));

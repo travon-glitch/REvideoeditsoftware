@@ -9,12 +9,12 @@ No public registration, no subscriptions, no billing, no public project access.
 | `packages/fablecut-core` | Vendored FableCut editor/render engine (MIT), unmodified, + a small Node wrapper |
 | `packages/camera-presets` | Camera moves for listing photos; includes Open-Generative-AI's lens tables (MIT) verbatim |
 | `supabase/` | Database migration (schema, Row-Level Security, storage, one-time setup), local config |
-| `docs/` | Architecture, setup guide, and one report per stage (`STAGE2.md` … `STAGE13.md`) |
+| `docs/` | Architecture, setup guide, and one report per stage (`STAGE2.md` … `STAGE14.md`), the production guide (`DEPLOYMENT.md`) and the maintenance guide (`MAINTENANCE.md`) |
 | `reference/` | Upstream clones for auditing — git-ignored, never deployed |
 
 ## Quick start
 
-See **[docs/SETUP.md](docs/SETUP.md)**. Short version:
+See **[docs/SETUP.md](docs/SETUP.md)** (first setup), **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** (production) and **[docs/MAINTENANCE.md](docs/MAINTENANCE.md)** (looking after it). The Stage 14 audit with every test result is **[docs/STAGE14.md](docs/STAGE14.md)**. Short version:
 
 ```bash
 npm install

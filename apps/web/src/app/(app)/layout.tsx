@@ -14,7 +14,7 @@ import { CreateVideoButton } from "@/components/app/create-video-button";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireSession();
-  const items = navForRole(ctx.profile.role);
+  const items = navForRole(ctx.profile.role, ctx.profile.ui_mode);
   const companyName = ctx.brandKit?.company_name || ctx.organization.name;
 
   let logoUrl: string | null = null;

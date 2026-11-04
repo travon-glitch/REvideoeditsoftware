@@ -42,7 +42,7 @@ beforeAll(async () => {
     await tx.query(`insert into public.media_assets (organization_id, project_id, uploaded_by, kind, bucket, storage_path, file_name, mime_type, size_bytes)
       values ($1, $2, auth.uid(), 'audio', 'project-media', $3, 'Narration.m4a', 'audio/mp4', 300000)`, [org, aliceProject, files.narration]);
   });
-  const render = (await one<{ id: string }>(alice, `insert into public.render_jobs (organization_id, project_id, revision, preset, requested_by, document) values ($1, $2, 1, 'master-1080p', auth.uid(), '{"clips":[]}') returning id`, [org, aliceProject])).id;
+  const render = (await one<{ id: string }>(server(db), `insert into public.render_jobs (organization_id, project_id, revision, preset, requested_by, document) values ($1, $2, 1, 'master-1080p', $3, '{"clips":[]}') returning id`, [org, aliceProject, ids.alice])).id;
   await server(db)(async (tx) => {
     await tx.query(`insert into storage.objects (bucket_id, name, owner_id) values ('video-exports', $1, null)`, [files.video]);
     await tx.query(`update public.render_jobs set status = 'succeeded', output_path = $2, finished_at = now() where id = $1`, [render, files.video]);

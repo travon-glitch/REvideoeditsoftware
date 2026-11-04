@@ -6,6 +6,7 @@ import { authorizeAction, type ActionResult } from "@/lib/auth/session";
 import {
   assignListingSchema, fieldErrors, formDataToObject, listingDraftSchema, registerPhotosSchema, reorderSchema, replacePhotoSchema,
 } from "@/lib/validation";
+import { PHOTO_KINDS, sniffStoredFile } from "@/lib/storage-sniff";
 import { BUCKETS, MAX_PHOTO_BYTES, PHOTO_MIME_TYPES, cleanFileName, isListingPhotoPathFor, isListingThumbPathFor, isUuid } from "@/lib/storage";
 import { MAX_PHOTOS } from "@/lib/listings";
 
@@ -110,6 +111,13 @@ export async function registerPhotos(input: unknown): Promise<ActionResult<{ cou
   const supabase = await createClient();
   const present = await objectsInListingFolder(supabase, orgId, listing_id);
   if (files.some((f) => !present.has(f.path))) return { ok: false, message: "Some photos didn't finish uploading. Please try again." };
+  // the file's real content (not the type the browser declared) must be a JPG, PNG or WebP photo
+  const kinds = await Promise.all(files.map((f) => sniffStoredFile(supabase, BUCKETS.listingMedia, f.path)));
+  const fake = files.filter((_, i) => !PHOTO_KINDS.includes(kinds[i]!));
+  if (fake.length) {
+    await supabase.storage.from(BUCKETS.listingMedia).remove(files.flatMap((f) => [f.path, f.thumb_path ?? ""]).filter(Boolean));
+    return { ok: false, message: `${fake.map((f) => cleanFileName(f.file_name)).join(", ")} ${fake.length === 1 ? "isn't a real photo" : "aren't real photos"}. Please use JPG, PNG or WebP photos.` };
+  }
   // Thumbnails are optional (e.g. HEIC); keep one only if it is in this listing's folder and really uploaded.
   const thumbFor = (f: { thumb_path?: string | null }) =>
     f.thumb_path && isListingThumbPathFor(f.thumb_path, orgId, listing_id) && present.has(f.thumb_path) ? f.thumb_path : null;
@@ -163,6 +171,10 @@ export async function replacePhoto(input: unknown): Promise<ActionResult> {
   if (!validPhotoFile(f, auth.ctx.organization.id, asset.listing_id)) return { ok: false, message: "That file is not a supported photo." };
   const present = await objectsInListingFolder(supabase, auth.ctx.organization.id, asset.listing_id);
   if (!present.has(f.path)) return { ok: false, message: "The new photo didn't finish uploading." };
+  if (!PHOTO_KINDS.includes((await sniffStoredFile(supabase, BUCKETS.listingMedia, f.path))!)) {
+    await supabase.storage.from(BUCKETS.listingMedia).remove([f.path, f.thumb_path ?? ""].filter(Boolean));
+    return { ok: false, message: "That file isn't a real photo. Please use a JPG, PNG or WebP photo." };
+  }
 
   const thumb = f.thumb_path && isListingThumbPathFor(f.thumb_path, auth.ctx.organization.id, asset.listing_id) && present.has(f.thumb_path) ? f.thumb_path : null;
   const { data, error } = await supabase.from("media_assets").update({

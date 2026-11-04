@@ -1,3 +1,4 @@
+import { jobErrorForPeople } from "@/lib/video/job-errors";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Download, Film, Pencil, Type, Wand2 } from "lucide-react";
@@ -100,11 +101,11 @@ export default async function VideoPage({
                   <span className="w-28 font-semibold">{ORIENTATION_LABELS[r.aspect as Aspect]?.label ?? r.aspect}</span>
                   <span className="flex-1 text-muted-foreground">
                     {r.status === "succeeded" ? `${r.width}×${r.height} · ${Math.round(Number(r.duration_seconds ?? 0))} s · ${formatDateTime(r.created_at)}`
-                      : r.status === "failed" ? `Didn't finish: ${r.error_message ?? "unknown problem"}`
+                      : r.status === "failed" ? `Didn't finish: ${jobErrorForPeople(r.error_message)}`
                       : r.status === "running" ? `Being made… ${Math.round(Number(r.progress) * 100)}%` : "Waiting to start…"}
                   </span>
                   {r.status === "succeeded" && ctx.profile.can_download ? (
-                    <Button asChild size="sm"><a href={`/api/projects/${id}/renders/${r.id}/download`}><Download aria-hidden="true" />Download</a></Button>
+                    <Button asChild size="lg"><a href={`/api/projects/${id}/renders/${r.id}/download`}><Download aria-hidden="true" />Download MP4</a></Button>
                   ) : null}
                 </li>
               ))}

@@ -82,7 +82,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // everything except Next internals and static files (incl. the public template preview clips)
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|templates/[a-z-]+\\.mp4$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
+    // everything except Next internals and the public template previews (public/templates). Other paths that
+    // merely end in ".png" etc. still get the login check and security headers.
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|templates/[a-z0-9-]+\\.(?:mp4|jpg|jpeg|png|webp)$).*)",
   ],
 };

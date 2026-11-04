@@ -1,4 +1,5 @@
 import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { createClient } from "@/lib/supabase/server";
 import type { SessionContext } from "@/lib/auth/session";
 import type { Json, ListingRow } from "@/lib/database.types";
@@ -103,8 +104,10 @@ export async function queueRenders(db: Db, ctx: SessionContext, projectId: strin
       aspect, document: document as Json, requested_by: ctx.userId, ...(label ? { label: label.slice(0, 120) } : {}),
     });
   }
-  const { data, error } = await db.from("render_jobs").insert(rows).select(RENDER_FIELDS);
-  if (error) return { ok: false, status: 403, message: "You can't make this video." };
+  // Only the app server queues renders (after the access, branding and document checks above):
+  // people can't insert render jobs directly, so nobody can skip the company's branding rules.
+  const { data, error } = await createAdminClient().from("render_jobs").insert(rows).select(RENDER_FIELDS);
+  if (error) return { ok: false, status: 403, message: /too large|too long/i.test(error.message) ? "This video is too long or too large to make." : "You can't make this video." };
   await db.from("video_projects").update({ status: "rendering" }).eq("id", projectId);
   return { ok: true, value: data ?? [] };
 }

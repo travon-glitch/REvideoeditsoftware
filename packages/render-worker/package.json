@@ -6,7 +6,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": { ".": "./src/index.ts", "./sniff": "./src/sniff.ts" },
   "scripts": {
     "start": "node --env-file-if-exists=../../apps/web/.env.local src/worker.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"

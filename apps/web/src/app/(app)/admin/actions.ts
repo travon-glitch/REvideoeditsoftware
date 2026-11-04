@@ -15,6 +15,7 @@ import {
   unassignProjectSchema, userStatusSchema,
 } from "@/lib/validation";
 import { BUCKETS, cleanFileName, isBrandLogoPathFor, isUuid } from "@/lib/storage";
+import { AUDIO_KINDS, PHOTO_KINDS, sniffStoredFile } from "@/lib/storage-sniff";
 import { ensureBrandImage } from "@/lib/music";
 
 /** Turns Supabase Auth sign-in off/on for an account (in addition to the database status). */
@@ -224,6 +225,10 @@ export async function setBrandLogo(path: string, which: "logo" | "brokerage" = "
   const folder = `${auth.ctx.organization.id}/brand`;
   const { data: objects } = await supabase.storage.from(BUCKETS.brandAssets).list(folder, { limit: 1000 });
   if (!(objects ?? []).some((o) => `${folder}/${o.name}` === path)) return { ok: false, message: "The logo didn't finish uploading." };
+  if (!PHOTO_KINDS.includes((await sniffStoredFile(supabase, BUCKETS.brandAssets, path))!)) {
+    await supabase.storage.from(BUCKETS.brandAssets).remove([path]);
+    return { ok: false, message: "That file isn't a real PNG, JPG or WebP image." };
+  }
 
   const column = which === "brokerage" ? "brokerage_logo_path" : "logo_path";
   const old = which === "brokerage" ? kit.brokerage_logo_path : kit.logo_path;
@@ -371,6 +376,10 @@ export async function addMusicTrack(input: unknown): Promise<ActionResult> {
   const org = auth.ctx.organization.id;
   if (!new RegExp(`^${org}/music/[0-9a-f-]{36}\\.(mp3|m4a|aac|wav)$`).test(d.path)) return { ok: false, message: "That upload isn't in the music library folder." };
   const supabase = await createClient();
+  if (!AUDIO_KINDS.includes((await sniffStoredFile(supabase, BUCKETS.musicLibrary, d.path))!)) {
+    await supabase.storage.from(BUCKETS.musicLibrary).remove([d.path]);
+    return { ok: false, message: "That file isn't a real MP3, M4A, AAC or WAV audio file." };
+  }
   const { data: asset, error } = await supabase.from("media_assets").insert({
     organization_id: org, uploaded_by: auth.ctx.userId, kind: "audio", bucket: BUCKETS.musicLibrary, storage_path: d.path,
     file_name: cleanFileName(d.file_name), mime_type: d.mime_type, size_bytes: d.size_bytes, duration_seconds: d.duration_seconds,

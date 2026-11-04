@@ -3,6 +3,7 @@
  * (`deps`) so the same logic runs against Supabase in production and against
  * local stand-ins in tests.
  */
+import { expectedKinds, sniffMedia } from "./sniff.ts";
 import { readFile } from "node:fs/promises";
 import { checkRenderDocument, type AllowedAsset } from "./sanitize.ts";
 import { renderDocument, type RenderResult } from "./render.ts";
@@ -89,7 +90,18 @@ export async function processJob(job: RenderJob, deps: JobDeps): Promise<{ ok: b
     const files = checkRenderDocument(job.document, allowed);
 
     const bytes = new Map<string, Uint8Array>();
-    for (const f of files) bytes.set(f.fileName, await deps.download(f.bucket, f.storagePath));
+    for (const f of files) {
+      const data = await deps.download(f.bucket, f.storagePath);
+      // the renderer (Chrome + FFmpeg) decides by content, so every file must really be what its name says
+      const kinds = expectedKinds(f.fileName);
+      const kind = sniffMedia(data);
+      if (!kinds || !kind || !kinds.includes(kind)) {
+        throw new Error(/\.hei[cf]$/i.test(f.fileName)
+          ? "A photo in this video is in Apple's HEIC format, which videos can't use. Replace it with a JPG."
+          : "A file in this video isn't a real photo, video clip or audio file. Replace it and try again.");
+      }
+      bytes.set(f.fileName, data);
+    }
 
     result = await renderDocument({
       document: job.document,

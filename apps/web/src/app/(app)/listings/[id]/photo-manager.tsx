@@ -162,7 +162,7 @@ export function PhotoManager({
         <span className="text-lg font-semibold">
           {busy ? "Uploading…" : room <= 0 ? "This listing has the maximum of 30 photos" : "Drop photos here, or click to choose"}
         </span>
-        <span className="text-base text-muted-foreground">JPG, PNG, WebP or HEIC · choose several at once · up to {MAX_PHOTOS} photos · 50 MB each</span>
+        <span className="text-base text-muted-foreground">JPG, PNG or WebP (iPhone photos convert automatically) · choose several at once · up to {MAX_PHOTOS} photos · 50 MB each</span>
         <input
           ref={inputRef} type="file" multiple accept={PHOTO_MIME_TYPES.join(",")} className="sr-only"
           disabled={busy || room <= 0} onChange={(e) => void addFiles(e.target.files)} aria-label="Choose photos to upload"

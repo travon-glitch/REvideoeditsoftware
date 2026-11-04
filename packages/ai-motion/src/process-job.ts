@@ -86,7 +86,10 @@ export async function processGenerationJob(job: GenerationJob, deps: GenerationD
     }
     const ext = (asset.storage_path.split(".").pop() ?? "jpg").replace(/[^a-z0-9]/gi, "").slice(0, 5) || "jpg";
     const photo = join(dir, `source.${ext}`);
-    writeFileSync(photo, await deps.download(asset.bucket, asset.storage_path));
+    const photoBytes = await deps.download(asset.bucket, asset.storage_path);
+    // FFmpeg decides by content: only real JPEG, PNG or WebP photos are decoded
+    if (!isRealPhoto(photoBytes)) throw new Error("This photo isn't a JPG, PNG or WebP image. Replace it and try again.");
+    writeFileSync(photo, photoBytes);
     const [width, height] = ASPECT_SIZE[input.aspect];
     const out = join(dir, "clip.mp4");
     const move = getStudioMove(input.spec.move)!;
@@ -130,4 +133,13 @@ export async function processGenerationJob(job: GenerationJob, deps: GenerationD
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** JPEG, PNG or WebP by its first bytes (never by name or declared type). */
+export function isRealPhoto(b: Uint8Array): boolean {
+  if (b.length < 12) return false;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return true;
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return true;
+  const s = (i: number, t: string) => [...t].every((c, k) => b[i + k] === c.charCodeAt(0));
+  return s(0, "RIFF") && s(8, "WEBP");
 }
