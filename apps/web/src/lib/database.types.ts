@@ -111,6 +111,10 @@ export type AiUsageRow = {
   id: string; at: string; kind: "video_clip" | "depth_clip" | "director" | "voiceover" | "transcription"; provider: string; model: string;
   user_id: string | null; status: string; cost_cents: number; error_message: string | null; project_id: string | null; listing_id: string | null;
 };
+export type WorkerHeartbeatRow = {
+  worker_id: string; kind: "render" | "ai"; host: string | null; providers: string[]; started_at: string; last_seen_at: string;
+  current_job: string | null; jobs_done: number; last_error: string | null;
+};
 export type ProjectRevisionRow = {
   project_id: string; revision: number; organization_id: string; document: Json; author_id: string | null;
   note: string | null; created_at: string;
@@ -185,6 +189,7 @@ export type Database = {
       generation_jobs: Table<GenerationJobRow, "organization_id" | "kind" | "provider" | "model">;
       render_jobs: Table<RenderJobRow, "organization_id" | "project_id" | "revision" | "preset">;
       audit_log: Table<AuditLogRow, "action">;
+      worker_heartbeats: Table<WorkerHeartbeatRow, "worker_id" | "kind">;
     };
     Views: { [_ in never]: never };
     Functions: {

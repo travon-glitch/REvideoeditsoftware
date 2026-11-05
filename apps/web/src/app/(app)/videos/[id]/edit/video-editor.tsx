@@ -8,6 +8,8 @@
  * Every change autosaves (with a revision check) and can be undone.
  */
 import { jobErrorForPeople } from "@/lib/video/job-errors";
+import { VideoMakerNotice } from "@/components/video/video-maker-notice";
+import type { VideoMakerStatus } from "@/lib/video-maker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleCheck, Copy, Diamond, Download, LoaderCircle, Plus, Scissors, Sparkles, Trash2, TriangleAlert, Type, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,7 +42,7 @@ const uid = (p: string) => `${p}${Math.random().toString(36).slice(2, 9)}`;
 
 export function VideoEditor({
   projectId, orgId, initialPlan, initialRevision, photos, initialMusic, initialRenders, brandColor, canDownload, clips = [],
-  initialMode = "easy", listing = null, brand = null, voices = [], voiceReady = { tts: false, asr: false },
+  initialMode = "easy", listing = null, brand = null, voices = [], voiceReady = { tts: false, asr: false }, maker,
 }: {
   projectId: string; orgId: string; initialPlan: EditPlan; initialRevision: number; photos: EditorPhoto[];
   initialMusic: EditorMusic[]; initialRenders: EditorRender[]; brandColor: string; canDownload: boolean;
@@ -48,7 +50,7 @@ export function VideoEditor({
   clips?: EditorAiClip[];
   initialMode?: "easy" | "advanced";
   listing?: EasyListing | null; brand?: EasyBrand | null;
-  voices?: VoiceOption[]; voiceReady?: { tts: boolean; asr: boolean };
+  voices?: VoiceOption[]; voiceReady?: { tts: boolean; asr: boolean }; maker?: VideoMakerStatus;
 }) {
   const history = useHistory(initialPlan);
   const plan = history.value;
@@ -231,7 +233,7 @@ export function VideoEditor({
           {active ? "Making your video…" : "Export 1080p MP4"}
         </Button>
         {exportError ? <Alert variant="destructive"><AlertDescription>{exportError}</AlertDescription></Alert> : null}
-        <RenderList projectId={projectId} renders={renders} canDownload={canDownload} />
+        <RenderList projectId={projectId} renders={renders} canDownload={canDownload} maker={maker} />
       </CardContent>
     </Card>
   );
@@ -354,9 +356,11 @@ function SaveBadge({ state, onReload }: { state: SaveState; onReload: () => void
   );
 }
 
-export function RenderList({ projectId, renders, canDownload }: { projectId: string; renders: EditorRender[]; canDownload: boolean }) {
+export function RenderList({ projectId, renders, canDownload, maker }: { projectId: string; renders: EditorRender[]; canDownload: boolean; maker?: VideoMakerStatus }) {
   if (renders.length === 0) return <p className="text-sm text-muted-foreground">Your finished videos will appear here.</p>;
   return (
+    <>
+    <VideoMakerNotice status={maker} waiting={renders.some((r) => r.status === "queued")} />
     <ul className="flex flex-col divide-y rounded-lg border">
       {renders.map((r) => (
         <li key={r.id} className="flex flex-wrap items-center gap-3 px-3 py-3">
@@ -379,6 +383,7 @@ export function RenderList({ projectId, renders, canDownload }: { projectId: str
         </li>
       ))}
     </ul>
+    </>
   );
 }
 

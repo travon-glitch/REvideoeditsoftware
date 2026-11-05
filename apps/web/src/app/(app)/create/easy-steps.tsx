@@ -1,5 +1,7 @@
 "use client";
 import { jobErrorForPeople } from "@/lib/video/job-errors";
+import { VideoMakerNotice } from "@/components/video/video-maker-notice";
+import type { VideoMakerStatus } from "@/lib/video-maker";
 import { useMemo, useState } from "react";
 import { Check, Download, Film, LoaderCircle, Music, RefreshCw, Sparkles, Star, Type, Upload } from "lucide-react";
 import { STILL_NAME, getMove } from "@lvs/camera-presets";
@@ -216,8 +218,8 @@ export function VideoSummary({ plan, musicName }: { plan: EditPlan; musicName: s
 }
 
 export function RenderPanel({
-  projectId, renders, canDownload, onRetry,
-}: { projectId: string; renders: WizardRender[]; canDownload: boolean; onRetry: () => void }) {
+  projectId, renders, canDownload, onRetry, maker,
+}: { projectId: string; renders: WizardRender[]; canDownload: boolean; onRetry: () => void; maker?: VideoMakerStatus }) {
   const latest = renders[0];
   if (!latest) return null;
   const pct = Math.round(latest.progress * 100);
@@ -229,6 +231,7 @@ export function RenderPanel({
           <p className="flex items-center gap-2 text-lg font-semibold"><LoaderCircle className="size-6 animate-spin text-primary" aria-hidden="true" />
             {latest.status === "queued" ? "Getting ready…" : `Making your video… ${pct}%`}
           </p>
+          <VideoMakerNotice status={maker} waiting={latest.status === "queued"} />
           <div className="h-3 w-full overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progress">
             <div className="h-3 rounded-full bg-primary transition-all" style={{ width: `${Math.max(4, pct)}%` }} />
           </div>

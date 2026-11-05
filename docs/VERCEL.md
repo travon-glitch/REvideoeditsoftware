@@ -69,6 +69,30 @@ You can sign in and set everything up with only Supabase and Vercel (steps 1 to 
 - **Admin → AI control panel:** Claude key, AI switches, spending ceilings.
 - **Admin → People → Add employee:** each person gets an invitation email and chooses their own password.
 
+## 6a. Make videos with GitHub Actions (no server needed)
+
+The easiest way to get **Export MP4** working: GitHub runs the video maker for you, only when someone presses Export, using the workflow already in this repository (`.github/workflows/render-videos.yml`). Nothing to host.
+
+1. **GitHub → your repository → Settings → Secrets and variables → Actions → New repository secret.** Add:
+   - `NEXT_PUBLIC_SUPABASE_URL` = your Supabase Project URL;
+   - `SUPABASE_SERVICE_ROLE_KEY` = your Supabase service_role key;
+   - `LVS_SECRETS_KEY` only if you also set it on Vercel.
+2. **Create a token so the website can start it:** GitHub → your avatar → Settings → Developer settings → Personal access tokens → **Fine-grained tokens → Generate new token**:
+   - Repository access: **Only select repositories →** this repository.
+   - Permissions → Repository permissions → **Actions: Read and write**. Nothing else.
+   - Give it an expiry you'll remember (for example 1 year) and copy it.
+3. **Vercel → Settings → Environment Variables**, add for Production:
+   - `GITHUB_RENDER_TOKEN` = the token from step 2;
+   - `GITHUB_RENDER_REPO` = `travon-glitch/REvideoeditsoftware`.
+
+   Then **Redeploy**.
+4. Test it: open a video, press **Generate video** (or Export MP4), and watch **GitHub → Actions → Render videos**. The first run takes about 3 to 4 minutes (installing). The MP4 then appears in the app with a Download button.
+
+Notes:
+- Each run costs GitHub Actions minutes, roughly 3 to 6 minutes per video. Private repositories on the free plan include 2,000 minutes a month; add a payment method in GitHub for more.
+- If the website can't start it (no token), a safety-net run every 3 hours still makes waiting videos.
+- AI narration and captions still need the voice service (section 6) because they run while you edit, not at export time.
+
 ## 6. The worker container (videos, AI, narration)
 
 This is one Docker image, `deploy/worker.Dockerfile`, which runs the render worker, the AI worker and the voice service.
@@ -112,6 +136,7 @@ On a plain server, put HTTPS in front of port 8790 (for example Caddy). The voic
 | AI control panel: key boxes greyed out | `SUPABASE_SERVICE_ROLE_KEY` isn't set on Vercel | Add it and redeploy |
 | AI control panel: "Settings are not available" | The company's settings row was missing (first account not made through `/setup`) | Fixed automatically from this version; or run `supabase/migrations/20261115000100_settings_self_heal.sql` in the SQL Editor |
 | "Claude rejected this key" with "Using the server's ANTHROPIC_API_KEY" | The `ANTHROPIC_API_KEY` set on Vercel is wrong or revoked | Type a valid key into the panel and press **Save key** (a saved key replaces the server's), or fix or remove it in Vercel and redeploy |
+| A video stays on "Getting ready…" / "Waiting to start…" | No video maker is running | Set up 6a (GitHub Actions) or 6 (worker container). The app shows a notice saying which. |
 | "That email and password don't match" for everyone | No account yet | Create the first one with `supabase/first-login.sql` → `/setup` (step 4) |
 | `/setup` says the code is wrong or expired | Codes last 60 minutes and only the newest works | Run `first-login.sql` again and use the new code |
 

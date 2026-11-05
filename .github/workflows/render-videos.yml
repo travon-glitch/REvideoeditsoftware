@@ -1,0 +1,87 @@
+# Makes the videos (MP4s) and AI camera clips people ask for in the app, on GitHub's computers,
+# so no separate server is needed. The app starts this workflow when someone presses Export /
+# Generate (GITHUB_RENDER_TOKEN on Vercel); the schedule below is only a safety net.
+#
+# One-time setup — GitHub repo → Settings → Secrets and variables → Actions → New repository secret:
+#   NEXT_PUBLIC_SUPABASE_URL      your Supabase Project URL
+#   SUPABASE_SERVICE_ROLE_KEY     your Supabase service_role key
+#   LVS_SECRETS_KEY               only if you set it on Vercel too (for saved AI keys)
+name: Render videos
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */3 * * *"
+
+# one video maker at a time; a new start waits for the running one instead of cancelling it
+concurrency:
+  group: render-videos
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LVS_SECRETS_KEY: ${{ secrets.LVS_SECRETS_KEY }}
+      RENDER_DRAIN_IDLE_SECONDS: "90"
+      AI_DRAIN_IDLE_SECONDS: "90"
+    steps:
+      - name: Anything waiting?
+        id: check
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::notice::Add the NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY repository secrets to make videos here."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          q() { curl -sS --max-time 20 "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/$1&select=id&limit=1" \
+                  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"; }
+          renders=$(q "render_jobs?status=in.(queued,running)")
+          clips=$(q "generation_jobs?status=in.(queued,running)")
+          echo "renders=$renders clips=$clips"
+          if [ "$renders" = "[]" ] && [ "$clips" = "[]" ]; then echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+          if [ "$clips" != "[]" ]; then echo "clips=true" >> "$GITHUB_OUTPUT"; fi
+
+      - if: steps.check.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - if: steps.check.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install FFmpeg
+        if: steps.check.outputs.run == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Install the workers
+        if: steps.check.outputs.run == 'true'
+        run: npm ci --no-audit --no-fund -w @lvs/render-worker -w @lvs/fablecut-core -w @lvs/ai-motion -w @lvs/camera-presets
+
+      - name: AI depth model (cached)
+        if: steps.check.outputs.clips == 'true'
+        uses: actions/cache@v4
+        with:
+          path: packages/ai-motion/models
+          key: midas-v21-small
+
+      - name: Make the videos
+        if: steps.check.outputs.run == 'true'
+        env:
+          LVS_CHROME_BIN: /usr/bin/google-chrome
+        run: |
+          pids=""
+          node packages/render-worker/src/worker.ts & pids="$pids $!"
+          if [ "${{ steps.check.outputs.clips }}" = "true" ]; then
+            [ -f packages/ai-motion/models/midas-v21-small-256.onnx ] || node packages/ai-motion/scripts/fetch-model.mjs
+            node packages/ai-motion/src/worker.ts & pids="$pids $!"
+          fi
+          status=0
+          for p in $pids; do wait "$p" || status=1; done
+          exit $status

@@ -1,4 +1,6 @@
 import { jobErrorForPeople } from "@/lib/video/job-errors";
+import { VideoMakerNotice } from "@/components/video/video-maker-notice";
+import { videoMakerStatus } from "@/lib/video-maker";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Download, Film, Pencil, Type, Wand2 } from "lucide-react";
@@ -94,6 +96,7 @@ export default async function VideoPage({
           <CardDescription>1080p MP4 files made from this project.</CardDescription>
         </CardHeader>
         <CardContent>
+          {(renders ?? []).some((r) => r.status === "queued") ? <div className="mb-3"><VideoMakerNotice status={await videoMakerStatus()} waiting /></div> : null}
           {renders && renders.length > 0 ? (
             <ul className="divide-y rounded-lg border">
               {renders.map((r) => (

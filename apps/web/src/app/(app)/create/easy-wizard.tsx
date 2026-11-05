@@ -1,4 +1,5 @@
 "use client";
+import type { VideoMakerStatus } from "@/lib/video-maker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -53,6 +54,8 @@ export interface WizardProps {
   brand: EasyBrand | null;
   brandColor: string;
   canDownload: boolean;
+  /** Whether the video maker is running (or starts on demand). */
+  maker?: VideoMakerStatus;
   /** The company switched on the Claude AI Director. */
   directorAvailable?: boolean;
 }
@@ -574,7 +577,7 @@ export function EasyWizard(props: WizardProps) {
               </AlertDescription>
             </Alert>
           ) : null}
-          <RenderPanel projectId={projectId} renders={renders} canDownload={props.canDownload} onRetry={() => void generate()} />
+          <RenderPanel projectId={projectId} renders={renders} canDownload={props.canDownload} onRetry={() => void generate()} maker={props.maker} />
           <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <div className="rounded-2xl border bg-card p-4">
               <PreviewPlayer plan={plan} photoUrls={photoUrls} musicUrl={music.find((m) => m.id === plan.music.assetId)?.url ?? null} brandColor={props.brandColor} />

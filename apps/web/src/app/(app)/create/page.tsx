@@ -1,3 +1,4 @@
+import { videoMakerStatus } from "@/lib/video-maker";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/session";
@@ -118,6 +119,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Promi
       brand={ctx.brandKit ? { company_name: ctx.brandKit.company_name, outro_text: ctx.brandKit.outro_text } : null}
       brandColor={ctx.brandKit?.primary_color ?? "#1D4ED8"}
       canDownload={ctx.profile.can_download}
+      maker={await videoMakerStatus()}
       directorAvailable={ctx.profile.can_use_ai && !!(await db.rpc("director_available")).data}
     />
   );

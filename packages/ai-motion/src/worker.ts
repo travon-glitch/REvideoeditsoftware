@@ -27,17 +27,25 @@ async function main() {
   if (served.length === 0) throw new Error("Nothing to serve: install the depth model (npm run fetch-model) or set a provider key.");
   console.log(`[ai-worker] ${workerId} serving: ${served.join(", ")}`);
   let lastSweep = 0, lastBeat = 0, done = 0;
+  // on-demand mode (GitHub Actions): exit once the queue has been empty this long
+  const drainIdleMs = Number(process.env.AI_DRAIN_IDLE_SECONDS ?? 0) * 1000;
+  let idleSince = Date.now();
   const beat = (job: string | null, error?: string | null) => { lastBeat = Date.now(); return heartbeat(db, { id: workerId, host: hostname(), providers: served, job, done, error }); };
   await beat(null);
   while (!stopping) {
     if (Date.now() - lastSweep > 60_000) { lastSweep = Date.now(); await db.rpc("requeue_stale_generation_jobs", { p_older_than_minutes: 30 }); }
     if (Date.now() - lastBeat > 30_000) await beat(null);
     const job = await claimGenerationJob(db, workerId, served).catch((e) => { console.error(e); return null; });
-    if (!job) { await new Promise((r) => setTimeout(r, POLL_MS)); continue; }
+    if (!job) {
+      if (drainIdleMs > 0 && Date.now() - idleSince > drainIdleMs) { console.log(`[ai-worker] queue empty — ${done} clip(s) made, exiting`); break; }
+      await new Promise((r) => setTimeout(r, POLL_MS));
+      continue;
+    }
     const started = Date.now();
     await beat(job.id);
     const r = await processGenerationJob(job, supabaseDeps(db, await providersForJob(db, job, providers)));
     done++;
+    idleSince = Date.now();
     await beat(null, r.ok ? null : `${job.provider}: ${r.error}`.slice(0, 500));
     console.log(`[ai-worker] job ${job.id} (${job.provider}) ${r.ok ? "done" : `failed: ${r.error}`} in ${Math.round((Date.now() - started) / 1000)} s`);
   }

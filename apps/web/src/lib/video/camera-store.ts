@@ -18,6 +18,7 @@ import { describeSpec, getStudioMove, isManualZero, type CameraSpec } from "@lvs
 import { composeDocument, type Aspect, type EditPlan } from "@/lib/video/plan";
 import { validateFableCutDocument } from "@/lib/video/validate-document";
 import { currentPlan, loadProjectAssets } from "@/lib/video/editor-data";
+import { startVideoMaker } from "@/lib/video-maker";
 import { RENDER_FIELDS, queueRenders, savePlan, type StoreResult } from "@/lib/video/project-store";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -122,6 +123,7 @@ export async function startAiClip(db: Db, ctx: SessionContext, input: {
   if (error || !data) {
     return { ok: false, status: 403, message: input.method === "generative" ? "Generative AI isn't switched on for your company. An administrator can turn it on." : "You can't make AI clips for this photo." };
   }
+  await startVideoMaker("ai");
   return { ok: true, value: { id: data.id } };
 }
 
