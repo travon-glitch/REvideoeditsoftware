@@ -94,7 +94,7 @@ describe("studio moves", () => {
     }), 4, HD);
     expect(custom.keyframes.scale.map((k) => k.t)).toEqual([0, 2, 4]);
     expect(custom.keyframes.scale[1]!.ease).toBe("linear");
-    expect(custom.props).toEqual({ motionBlur: 180, motionBlurSamples: 8 });
+    expect(custom.props).toEqual({ fit: "cover", motionBlur: 180, motionBlurSamples: 8 });
     const framed = cameraKeyframes(defaultSpec("zoom", { startFrame: { x: 0, y: 0, zoom: 1.5, rotation: 0 }, endFrame: { x: 0, y: 0, zoom: 1.2, rotation: 0 }, easing: "ease-out" }), 3, HD);
     expect(framed.keyframes.scale.map((k) => k.v)).toEqual([1.5, 1.2]);
     expect(framed.keyframes.scale[1]!.ease).toBe("ease-out");

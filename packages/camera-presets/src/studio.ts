@@ -199,6 +199,76 @@ export interface CameraSpec {
   keyframes: CameraKey[] | null;
   /** Optional hand-set movement (the "Move camera" sliders / frame). Overrides the move's path. */
   manual?: ManualMove | null;
+  /** Where a hand-set movement starts (the sliders then say how far it travels from here). */
+  manualStart?: ManualStart | null;
+  /**
+   * How the photo sits in the video frame. Missing = "cover" (how every spec saved before
+   * framing modes existed renders, so old videos don't change).
+   */
+  fit?: PhotoFit;
+  /** What fills the frame around the photo in "contain" and "smart" framing. */
+  background?: FrameBackground | null;
+  /** Smart Fit: the part of the photo to keep in view (fractions of the photo, 0…1). */
+  safeArea?: SafeArea | null;
+}
+
+/* ── Photo framing ─────────────────────────────────────────────────────── */
+
+/**
+ *  - contain ("Show Entire Photo"): the whole photo is inside the frame at every moment; any
+ *    space around it shows the background. Its size at rest (the photo just touching two
+ *    edges) is 1.0×. Movement never crops it: if a move would push it past an edge, the whole
+ *    move is scaled down (smaller photo, shorter travel) until it fits.
+ *  - cover ("Fill Screen"): the photo fills the frame and the overflow is cut off; movement is
+ *    zoomed in just enough that no edge ever shows (the edge guard).
+ *  - smart ("Smart Fit"): frames the safe area (the home) as large as it fits, never larger
+ *    than Fill Screen; the rest of the photo may be cut, the safe area never is.
+ */
+export const PHOTO_FITS = ["contain", "cover", "smart"] as const;
+export type PhotoFit = (typeof PHOTO_FITS)[number];
+export const PHOTO_FIT_LABELS: Record<PhotoFit, { label: string; hint: string }> = {
+  contain: { label: "Show Entire Photo", hint: "The whole photo stays in view. Space around it is filled with the background." },
+  cover: { label: "Fill Screen", hint: "The photo fills the frame edge to edge. Parts of it are cut off." },
+  smart: { label: "Smart Fit", hint: "Finds the most detailed part of the photo (usually the home) and keeps all of it in view." },
+};
+export const BACKGROUND_KINDS = ["blur", "color", "gradient", "ai"] as const;
+export type BackgroundKind = (typeof BACKGROUND_KINDS)[number];
+export const BACKGROUND_LABELS: Record<BackgroundKind, string> = {
+  blur: "Blurred photo", color: "Solid color", gradient: "Gradient", ai: "AI extended",
+};
+export interface FrameBackground { kind: BackgroundKind; color: string; color2: string }
+export const DEFAULT_BACKGROUND: FrameBackground = { kind: "blur", color: "#111827", color2: "#4B5563" };
+export interface SafeArea { x0: number; y0: number; x1: number; y1: number }
+/** Used by Smart Fit until the photo has been analysed. */
+export const DEFAULT_SAFE_AREA: SafeArea = { x0: 0.08, y0: 0.04, x1: 0.92, y1: 0.98 };
+/** Start of a hand-set movement: view centre (fractions of the frame) and zoom (1 = the framing's rest size). */
+export interface ManualStart { x: number; y: number; zoom: number }
+
+/** How the backgrounds look — shared by the export (FableCut) and every browser preview. */
+export const BACKGROUND_LOOK = {
+  /** Blur radius as a share of the frame's short side (≈38 px at 1080p). */
+  blurOfShortSide: 0.035,
+  /** The blurred copy is drawn a little larger so its softened edges stay outside the frame. */
+  scale: 1.12,
+  brightness: 82,
+  /** Gradient: top colour → bottom colour in this many bands (FableCut allows 64 shapes per layer). */
+  gradientBands: 64,
+} as const;
+
+/** a → b at t (0…1), "#rrggbb". */
+export function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const A = p(a), B = p(b);
+  return "#" + A.map((v, i) => Math.round(v + (B[i]! - v) * clamp(t, 0, 1)).toString(16).padStart(2, "0")).join("");
+}
+
+export function specFit(spec: Pick<CameraSpec, "fit">): PhotoFit {
+  return spec.fit && (PHOTO_FITS as readonly string[]).includes(spec.fit) ? spec.fit : "cover";
+}
+/** The background actually drawn (none for Fill Screen; AI extended draws the blurred photo until generated). */
+export function specBackground(spec: Pick<CameraSpec, "fit" | "background">): FrameBackground | null {
+  if (specFit(spec) === "cover") return null;
+  return spec.background ?? DEFAULT_BACKGROUND;
 }
 
 /* ── Hand-set movement ("Move camera") ─────────────────────────────────── */
@@ -229,19 +299,72 @@ export function isManualZero(m: ManualMove | null | undefined): boolean {
   return !m || MANUAL_AXES.every((a) => m[a] === 0);
 }
 
-/** Start and end views of a hand-set movement (before the lens zoom and edge guard). */
-export function manualViews(m: ManualMove, baseZoom = 1): [CameraView, CameraView] {
+/** Start and end views of a hand-set movement (before the lens zoom and edge guard). The sliders travel from `start`. */
+export function manualViews(m: ManualMove, baseZoom = 1, start?: ManualStart | null): [CameraView, CameraView] {
   const k = MANUAL_SCALE;
+  const st = start ?? { x: 0, y: 0, zoom: 1 };
   const zIn = 1 + Math.abs(m.zoom) * k.zoom;
-  const start: CameraView = { x: 0, y: 0, zoom: baseZoom * (m.zoom < 0 ? zIn : 1), rotation: 0 };
+  const from: CameraView = { x: st.x, y: st.y, zoom: baseZoom * st.zoom * (m.zoom < 0 ? zIn : 1), rotation: 0 };
   const end: CameraView = {
-    x: clamp(m.horizontal * k.slide + m.pan * k.turnSlide, -0.5, 0.5),
+    x: clamp(st.x + m.horizontal * k.slide + m.pan * k.turnSlide, -0.5, 0.5),
     // + is up, which is towards the top of the photo (negative y)
-    y: clamp(-(m.vertical * k.slide + m.tilt * k.turnSlide), -0.5, 0.5),
-    zoom: baseZoom * (m.zoom > 0 ? zIn : 1),
+    y: clamp(st.y - (m.vertical * k.slide + m.tilt * k.turnSlide), -0.5, 0.5),
+    zoom: baseZoom * st.zoom * (m.zoom > 0 ? zIn : 1),
     rotation: m.rotate * k.rollDeg,
   };
-  return [start, end];
+  return [from, end];
+}
+
+/** True when the spec is a hand-set movement (sliders moved, or a start frame placed). */
+export function hasManual(spec: Pick<CameraSpec, "manual" | "manualStart">): boolean {
+  return !isManualZero(spec.manual) || !!spec.manualStart;
+}
+
+/** The start and end frames of the hand-set movement, as the "Move camera" frame editor shows them. */
+export function manualFrames(spec: Pick<CameraSpec, "manual" | "manualStart">): { start: CameraView; end: CameraView } {
+  const [start, end] = manualViews(spec.manual ?? ZERO_MANUAL, 1, spec.manualStart);
+  return { start, end };
+}
+
+/**
+ * Places one frame of the hand-set movement and keeps the other where it is: the start frame
+ * becomes `manualStart`, the travel between them becomes the sliders (pan, tilt and roll stay).
+ */
+export function withManualFrame(spec: CameraSpec, which: "start" | "end", v: { x: number; y: number; zoom: number }): CameraSpec {
+  const k = MANUAL_SCALE;
+  const cur = manualFrames(spec);
+  const want = { x: clamp(v.x, -0.5, 0.5), y: clamp(v.y, -0.5, 0.5), zoom: clamp(v.zoom, 0.5, 3) };
+  const s = which === "start" ? want : { x: cur.start.x, y: cur.start.y, zoom: cur.start.zoom };
+  const e = which === "end" ? want : { x: cur.end.x, y: cur.end.y, zoom: cur.end.zoom };
+  const m = { ...(spec.manual ?? ZERO_MANUAL) };
+  const r1 = (n: number) => Math.round(clamp(n, -10, 10) * 10) / 10;
+  m.horizontal = r1((e.x - s.x - m.pan * k.turnSlide) / k.slide);
+  m.vertical = r1((-(e.y - s.y) - m.tilt * k.turnSlide) / k.slide);
+  const lo = Math.min(s.zoom, e.zoom);
+  m.zoom = r1(e.zoom >= s.zoom ? (e.zoom / s.zoom - 1) / k.zoom : -(s.zoom / e.zoom - 1) / k.zoom);
+  const start: ManualStart = { x: Math.round(s.x * 10000) / 10000, y: Math.round(s.y * 10000) / 10000, zoom: Math.round(clamp(lo, 0.5, 3) * 1000) / 1000 };
+  const isRest = start.x === 0 && start.y === 0 && start.zoom === 1;
+  return { ...spec, manual: m, manualStart: isRest ? null : start, startFrame: null, endFrame: null, keyframes: null };
+}
+
+/* ── "Move camera" presets ─────────────────────────────────────────────── */
+
+export interface MovePreset { id: string; name: string; description: string; manual: Partial<ManualMove>; start?: ManualStart }
+export const MOVE_PRESETS: readonly MovePreset[] = [
+  { id: "gentle_zoom", name: "Gentle Zoom", description: "Slowly moves a little closer.", manual: { zoom: 2 } },
+  { id: "move_left", name: "Move Left", description: "Glides to the left.", manual: { horizontal: -4 } },
+  { id: "move_right", name: "Move Right", description: "Glides to the right.", manual: { horizontal: 4 } },
+  { id: "move_up", name: "Move Up", description: "Rises slowly.", manual: { vertical: 4 } },
+  { id: "move_down", name: "Move Down", description: "Lowers slowly.", manual: { vertical: -4 } },
+  { id: "cinematic_reveal", name: "Cinematic Reveal", description: "Starts close and backs away to show the whole home.", manual: { zoom: -5, vertical: 1 }, start: { x: 0, y: 0.03, zoom: 1 } },
+  { id: "full_view", name: "Full Property View", description: "Shows the whole property with a barely-there drift.", manual: { zoom: 0.8 } },
+];
+
+export function applyMovePreset(spec: CameraSpec, id: string): CameraSpec {
+  const p = MOVE_PRESETS.find((x) => x.id === id);
+  if (!p) return spec;
+  return { ...spec, manual: { ...ZERO_MANUAL, ...p.manual }, manualStart: p.start && (p.start.x || p.start.y || p.start.zoom !== 1) ? { ...p.start } : null,
+    startFrame: null, endFrame: null, keyframes: null, easing: "ease-in-out" };
 }
 
 export function defaultSpec(move: StudioMoveId = "push_in", patch: Partial<CameraSpec> = {}): CameraSpec {
@@ -305,7 +428,23 @@ export function normalizeSpec(s: CameraSpec): CameraSpec {
     manual: s.manual
       ? Object.fromEntries(MANUAL_AXES.map((a) => [a, Math.round(clamp(Number(s.manual![a]) || 0, -10, 10) * 10) / 10])) as unknown as ManualMove
       : null,
+    manualStart: s.manualStart
+      ? { x: clamp(Number(s.manualStart.x) || 0, -0.5, 0.5), y: clamp(Number(s.manualStart.y) || 0, -0.5, 0.5), zoom: clamp(Number(s.manualStart.zoom) || 1, 0.5, 3) }
+      : null,
+    ...(s.fit ? { fit: specFit(s) } : {}),
+    ...(s.background ? { background: {
+      kind: (BACKGROUND_KINDS as readonly string[]).includes(s.background.kind) ? s.background.kind : "blur",
+      color: HEX.test(s.background.color) ? s.background.color : DEFAULT_BACKGROUND.color,
+      color2: HEX.test(s.background.color2) ? s.background.color2 : DEFAULT_BACKGROUND.color2,
+    } } : {}),
+    ...(s.safeArea ? { safeArea: normalizeSafeArea(s.safeArea) } : {}),
   };
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+function normalizeSafeArea(a: SafeArea): SafeArea {
+  const x0 = clamp(Number(a.x0) || 0, 0, 0.9), y0 = clamp(Number(a.y0) || 0, 0, 0.9);
+  return { x0, y0, x1: clamp(Number(a.x1) || 1, x0 + 0.1, 1), y1: clamp(Number(a.y1) || 1, y0 + 0.1, 1) };
 }
 
 /** Zoom toward a point: the target stays where it is on screen while the zoom changes. */
@@ -371,8 +510,8 @@ export function cameraPath(spec: CameraSpec, duration: number): CameraKey[] {
       ...(i > 0 ? { ease: k.ease ?? s.easing } : {}),
     }));
   }
-  const [from, to] = s.manual && !isManualZero(s.manual)
-    ? manualViews(s.manual, s.zoom * lensZoom)
+  const [from, to] = hasManual(s)
+    ? manualViews(s.manual ?? ZERO_MANUAL, s.zoom * lensZoom, s.manualStart)
     : s.startFrame && s.endFrame
       ? [{ ...s.startFrame, zoom: s.startFrame.zoom * lensZoom }, { ...s.endFrame, zoom: s.endFrame.zoom * lensZoom }]
       : moveViews(s);
@@ -389,9 +528,21 @@ export interface Kf { t: number; v: number; ease?: Easing }
 export type CameraChannels = Record<"x" | "y" | "scale" | "rotation", Kf[]>;
 export interface CameraRender {
   keyframes: CameraChannels;
-  props: { motionBlur?: number; motionBlurSamples?: number };
-  /** Extra zoom added so no black edges show (1 = none needed). */
+  /** Clip props to set with the keyframes: FableCut's `fit` for the photo, plus motion blur. */
+  props: { fit: "contain" | "cover"; motionBlur?: number; motionBlurSamples?: number };
+  /** Fill Screen: extra zoom added so no edge of the photo shows (1 = none needed). */
   edgeGuard: number;
+  /** The framing mode used. */
+  mode: PhotoFit;
+  /**
+   * Show Entire Photo / Smart Fit: how much the whole move was scaled down so the photo
+   * (or the safe area) stays fully in view (1 = not at all).
+   */
+  fitScale: number;
+  /** What fills the space around the photo (null for Fill Screen). */
+  background: FrameBackground | null;
+  /** The framing the keyframes were made with. */
+  framing: Framing;
 }
 
 /** FableCut's keyframe interpolation (app.js kfChannel): ease on the destination key, held outside. */
@@ -440,55 +591,171 @@ export function coversFrame(tr: Transform, canvas: Canvas, photo?: { width: numb
   return true;
 }
 
-function toChannels(path: CameraKey[], canvas: Canvas, k: number): CameraChannels {
+/**
+ * Where the photo sits before any camera move. Sizes are in canvas px with the photo drawn by
+ * FableCut's `fit` at scale 1; `zoom` and `cx`/`cy` (a photo point, px from its centre, put in
+ * the middle of the frame) are Smart Fit's framing. `region` is what must stay in view
+ * (the whole photo for Show Entire Photo, the safe area for Smart Fit; null for Fill Screen).
+ */
+export interface Framing {
+  mode: PhotoFit;
+  fit: "contain" | "cover";
+  iw: number; ih: number;
+  zoom: number; cx: number; cy: number;
+  region: { cx: number; cy: number; w: number; h: number } | null;
+  /** Fill Screen: the share of the photo's width and height the frame shows at rest (1 = all of it). */
+  visible: { w: number; h: number };
+}
+
+export function photoFraming(spec: Pick<CameraSpec, "fit" | "safeArea">, canvas: Canvas, photo?: { width: number; height: number } | null): Framing {
+  const W = canvas.width, H = canvas.height;
+  const pw = photo && photo.width > 0 && photo.height > 0 ? photo.width : W;
+  const ph = photo && photo.width > 0 && photo.height > 0 ? photo.height : H;
+  const fCover = Math.max(W / pw, H / ph), fContain = Math.min(W / pw, H / ph);
+  const visible = { w: Math.min(1, W / (pw * fCover)), h: Math.min(1, H / (ph * fCover)) };
+  const mode = specFit(spec);
+  if (mode === "cover") return { mode, fit: "cover", iw: pw * fCover, ih: ph * fCover, zoom: 1, cx: 0, cy: 0, region: null, visible };
+  const iw = pw * fContain, ih = ph * fContain;
+  if (mode === "contain") return { mode, fit: "contain", iw, ih, zoom: 1, cx: 0, cy: 0, region: { cx: 0, cy: 0, w: iw, h: ih }, visible };
+  const a = normalizeSafeArea(spec.safeArea ?? DEFAULT_SAFE_AREA);
+  const sw = (a.x1 - a.x0) * iw, sh = (a.y1 - a.y0) * ih;
+  const zoom = clamp(Math.min(W / sw, H / sh), 1, fCover / fContain);
+  const rx = ((a.x0 + a.x1) / 2 - 0.5) * iw, ry = ((a.y0 + a.y1) / 2 - 0.5) * ih;
+  // centre on the safe area, but never leave a gap on a side the photo could still fill
+  const centre = (r: number, size: number, frame: number) => {
+    const room = (zoom * size - frame) / (2 * zoom);
+    return room <= 0 ? 0 : clamp(r, -room, room);
+  };
+  return { mode, fit: "contain", iw, ih, zoom, cx: centre(rx, iw, W), cy: centre(ry, ih, H), region: { cx: rx, cy: ry, w: sw, h: sh }, visible };
+}
+
+/** Is the framing's region (whole photo / safe area) fully inside the frame at this transform? */
+export function regionInFrame(tr: Transform, canvas: Canvas, region: { cx: number; cy: number; w: number; h: number }): boolean {
+  const th = (tr.rotation * Math.PI) / 180, c = Math.cos(th), s = Math.sin(th);
+  const hw = canvas.width / 2 + 0.5, hh = canvas.height / 2 + 0.5;
+  for (const [ux, uy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+    const px = (region.cx + (ux * region.w) / 2) * tr.scale, py = (region.cy + (uy * region.h) / 2) * tr.scale;
+    const sx = tr.x + px * c - py * s, sy = tr.y + px * s + py * c;
+    if (Math.abs(sx) > hw || Math.abs(sy) > hh) return false;
+  }
+  return true;
+}
+
+/** Views → FableCut channels. `k` scales the whole move (edge guard ≥ 1, fit limit ≤ 1). */
+function toChannels(path: CameraKey[], canvas: Canvas, k: number, fr: Pick<Framing, "zoom" | "cx" | "cy"> = { zoom: 1, cx: 0, cy: 0 }): CameraChannels {
   const ch: CameraChannels = { x: [], y: [], scale: [], rotation: [] };
   for (const key of path) {
     const z = key.zoom * k;
     const e = key.ease ? { ease: key.ease } : {};
-    ch.scale.push({ t: key.t, v: r4(z), ...e });
-    ch.x.push({ t: key.t, v: r4(-z * key.x * canvas.width), ...e });
-    ch.y.push({ t: key.t, v: r4(-z * key.y * canvas.height), ...e });
+    ch.scale.push({ t: key.t, v: r4(z * fr.zoom), ...e });
+    ch.x.push({ t: key.t, v: r4(-z * (fr.zoom * fr.cx + key.x * canvas.width)), ...e });
+    ch.y.push({ t: key.t, v: r4(-z * (fr.zoom * fr.cy + key.y * canvas.height)), ...e });
     ch.rotation.push({ t: key.t, v: r4(key.rotation), ...e });
   }
   return ch;
 }
 
 /**
- * The STANDARD method: FableCut keyframes for this camera spec.
- * If any moment would show past the photo's edge, the whole move is zoomed in
- * just enough (keeping the same view centre) — no black borders, ever.
+ * The STANDARD method: FableCut keyframes for this camera spec, in its framing mode.
+ *  - Fill Screen: if any moment would show past the photo's edge, the whole move is zoomed in
+ *    just enough (keeping the same view centre) — no black borders, ever.
+ *  - Show Entire Photo / Smart Fit: if any moment would push the photo (or its safe area)
+ *    past the frame's edge, the whole move is scaled down just enough — nothing is cropped,
+ *    the movement still happens, only smaller.
  */
 export function cameraKeyframes(spec: CameraSpec, duration: number, canvas: Canvas, photo?: { width: number; height: number } | null): CameraRender {
   if (!(duration > 0)) throw new Error("Duration must be greater than 0");
   const s = normalizeSpec(spec);
   const path = cameraPath(s, duration);
+  const fr = photoFraming(s, canvas, photo);
   const samples = 48;
+  const ok = (tr: Transform) => (fr.region ? regionInFrame(tr, canvas, fr.region) : coversFrame(tr, canvas, photo));
   const fits = (k: number) => {
-    const ch = toChannels(path, canvas, k);
-    for (let i = 0; i <= samples; i++) if (!coversFrame(transformAt(ch, (duration * i) / samples), canvas, photo)) return false;
+    const ch = toChannels(path, canvas, k, fr);
+    for (let i = 0; i <= samples; i++) if (!ok(transformAt(ch, (duration * i) / samples))) return false;
     return true;
   };
   let k = 1;
   if (!fits(1)) {
-    let lo = 1, hi = 1.5;
-    while (!fits(hi) && hi < 8) { lo = hi; hi *= 1.5; }
-    for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
-    k = hi * 1.002;
+    if (!fr.region) {
+      let lo = 1, hi = 1.5;
+      while (!fits(hi) && hi < 8) { lo = hi; hi *= 1.5; }
+      for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+      k = hi * 1.002;
+    } else {
+      // positions and sizes both scale with k about the frame's centre, so smaller always fits
+      let lo = 0.05, hi = 1;
+      for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+      k = lo * 0.999;
+    }
   }
-  const keyframes = toChannels(path, canvas, k);
+  const keyframes = toChannels(path, canvas, k, fr);
   // drop channels that never change (smaller documents)
   for (const name of ["rotation", "x", "y"] as const) {
     if (keyframes[name].every((x) => x.v === 0)) delete (keyframes as Partial<CameraChannels>)[name];
   }
-  const props = s.motionBlur > 0 ? { motionBlur: Math.round(s.motionBlur), motionBlurSamples: 8 } : {};
-  return { keyframes, props, edgeGuard: r4(k) };
+  const props = { fit: fr.fit, ...(s.motionBlur > 0 ? { motionBlur: Math.round(s.motionBlur), motionBlurSamples: 8 } : {}) };
+  return {
+    keyframes, props, mode: fr.mode, framing: fr,
+    edgeGuard: fr.region ? 1 : r4(k), fitScale: fr.region ? r4(k) : 1, background: specBackground(s),
+  };
+}
+
+/** How big the photo is drawn at a transform, relative to "the whole photo just fits" (1.0×). */
+export function photoScale(framing: Pick<Framing, "iw" | "ih">, tr: Pick<Transform, "scale">, canvas: Canvas): number {
+  return r4(tr.scale / Math.min(canvas.width / framing.iw, canvas.height / framing.ih));
+}
+
+/**
+ * Smart Fit's safe area from a small greyscale copy of the photo (0…255, row by row): the
+ * smallest box holding most of the photo's detail (edges), which on a listing photo is
+ * usually the home — roof line, doors, windows, garage. Flat sky and plain lawn have little
+ * detail and are left to the edges. A heuristic, not an object detector.
+ */
+export function safeAreaFromPixels(gray: ArrayLike<number>, w: number, h: number): SafeArea {
+  if (w < 8 || h < 8 || gray.length < w * h) return { ...DEFAULT_SAFE_AREA };
+  const col = new Float64Array(w), row = new Float64Array(h);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const gx = gray[i + 1]! - gray[i - 1]!, gy = gray[i + w]! - gray[i - w]!;
+      const g = Math.sqrt(gx * gx + gy * gy);
+      col[x] = col[x]! + g; row[y] = row[y]! + g;
+    }
+  }
+  const span = (e: Float64Array, share: number): [number, number] => {
+    const n = e.length;
+    // a gentle pull to the middle: the subject of a listing photo is rarely at the very edge
+    const v = Array.from(e, (x, i) => x * (1 - 0.25 * Math.abs((i + 0.5) / n - 0.5) * 2));
+    const total = v.reduce((a, b) => a + b, 0);
+    if (total <= 0) return [0, n];
+    let best: [number, number] = [0, n], sum = 0, lo = 0;
+    for (let hi = 0; hi < n; hi++) {
+      sum += v[hi]!;
+      while (lo < hi && sum - v[lo]! >= share * total) { sum -= v[lo]!; lo++; }
+      if (sum >= share * total && hi + 1 - lo < best[1] - best[0]) best = [lo, hi + 1];
+    }
+    return best;
+  };
+  const [cx0, cx1] = span(col, 0.85), [cy0, cy1] = span(row, 0.85);
+  const pad = 0.05;
+  let x0 = cx0 / w - pad, x1 = cx1 / w + pad, y0 = cy0 / h - pad, y1 = cy1 / h + pad;
+  // at least half the photo each way, and keep the ground in front (driveway, yard)
+  const grow = (a: number, b: number, min: number): [number, number] => {
+    const d = min - (b - a);
+    return d > 0 ? [a - d / 2, b + d / 2] : [a, b];
+  };
+  [x0, x1] = grow(x0, x1, 0.5); [y0, y1] = grow(y0, y1, 0.5);
+  y1 = Math.max(y1, 0.9);
+  const r3 = (n: number) => Math.round(clamp(n, 0, 1) * 1000) / 1000;
+  return normalizeSafeArea({ x0: r3(x0), y0: r3(y0), x1: r3(x1), y1: r3(y1) });
 }
 
 /** Plain-English summary, e.g. "Push In · 5 s · gentle". */
 export function describeSpec(spec: CameraSpec, duration?: number): string {
-  if (spec.manual && !isManualZero(spec.manual)) {
-    const parts = MANUAL_AXES.filter((a) => spec.manual![a] !== 0).map((a) => `${MANUAL_LABELS[a].label} ${spec.manual![a] > 0 ? "+" : ""}${spec.manual![a]}`);
-    return ["Custom movement", duration ? `${duration} s` : null, parts.join(", ")].filter(Boolean).join(" · ");
+  if (hasManual(spec)) {
+    const parts = MANUAL_AXES.filter((a) => spec.manual && spec.manual[a] !== 0).map((a) => `${MANUAL_LABELS[a].label} ${spec.manual![a] > 0 ? "+" : ""}${spec.manual![a]}`);
+    return ["Custom movement", duration ? `${duration} s` : null, parts.join(", ") || "custom start frame", spec.fit ? PHOTO_FIT_LABELS[specFit(spec)].label : null].filter(Boolean).join(" · ");
   }
   const m = getStudioMove(spec.move);
   const feel = spec.strength < 0.4 ? "gentle" : spec.strength < 0.75 ? "normal" : "dramatic";

@@ -5,7 +5,17 @@ import {
   CANVAS_1080, resolveScene, sceneCamera, sceneStarts, sceneTransition, totalDuration, type EditPlan, type ItemKey, type Overlay, type TextOverlay,
 } from "@/lib/video/plan";
 import { narrationStart } from "@/lib/video/editor-layers";
+import { PhotoLayer } from "./photo-layer";
 import { cn } from "@/lib/utils";
+
+/** The photo's drawn size at scale 1 (as FableCut fits it), or null when its size isn't known. */
+function drawnSize(fit: "contain" | "cover", canvas: { width: number; height: number }, size?: { width: number | null; height: number | null } | null) {
+  if (!size?.width || !size.height) return null;
+  const f = (fit === "cover" ? Math.max : Math.min)(canvas.width / size.width, canvas.height / size.height);
+  return { iw: size.width * f, ih: size.height * f };
+}
+
+export type PhotoSizes = Record<string, { width: number | null; height: number | null }>;
 
 /**
  * One frame of the video at `time` seconds. Uses the same scene timing,
@@ -13,9 +23,11 @@ import { cn } from "@/lib/utils";
  * the final MP4 is rendered by FableCut's own compositor.
  */
 export function StageView({
-  plan, time, photoUrls, brandColor, className, fit = true, clipUrls,
+  plan, time, photoUrls, brandColor, className, fit = true, clipUrls, photoSizes,
 }: {
   plan: EditPlan; time: number; photoUrls: Record<string, string | null>; brandColor: string; className?: string;
+  /** Each photo's real size, so the camera framing matches the export exactly. */
+  photoSizes?: PhotoSizes;
   /** Playable links of AI camera clips used by scenes. */
   clipUrls?: Record<string, string | null>;
   /** Limit the width of tall and square videos so they fit on screen. */
@@ -44,17 +56,16 @@ export function StageView({
             );
           }
           // exactly the keyframes FableCut renders (x/y in px of the 1080p canvas → % of the frame)
-          const cam = sceneCamera(s, len, canvas);
+          const cam = sceneCamera(s, len, canvas, photoSizes?.[s.assetId] ?? null);
           const placed = cam?.props && s.position && !s.camera && s.move === "still";
-          const tr = placed ? { x: cam!.props!.x ?? 0, y: cam!.props!.y ?? 0, scale: cam!.props!.scale ?? 1, rotation: cam!.props!.rotation ?? 0 } : transformAt(cam?.keyframes, local);
+          const num = (v: unknown, d: number) => (typeof v === "number" ? v : d);
+          const tr = placed ? { x: num(cam!.props!.x, 0), y: num(cam!.props!.y, 0), scale: num(cam!.props!.scale, 1), rotation: num(cam!.props!.rotation, 0) } : transformAt(cam?.keyframes, local);
           const url = photoUrls[s.assetId];
+          const sceneFit = cam?.props?.fit === "contain" ? "contain" : "cover";
           return (
             <div key={s.id} className="absolute inset-0" style={{ opacity, zIndex: i }}>
-              {url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={url} alt="" className="size-full object-cover"
-                  style={{ transform: `translate(${(tr.x / canvas.width) * 100}%, ${(tr.y / canvas.height) * 100}%) rotate(${tr.rotation}deg) scale(${tr.scale})` }} />
-              ) : <div className="size-full bg-muted" />}
+              {url ? <PhotoLayer url={url} tr={tr} canvas={canvas} fit={sceneFit} background={cam?.background ?? null} drawn={drawnSize(sceneFit, canvas, photoSizes?.[s.assetId])} />
+                : <div className="size-full bg-muted" />}
             </div>
           );
         })}

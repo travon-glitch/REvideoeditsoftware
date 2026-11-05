@@ -1,6 +1,6 @@
 /* Validation for camera specs coming from the browser (the engine itself lives in @lvs/camera-presets). */
 import { z } from "zod";
-import { EASINGS, LENS_STYLES, STUDIO_MOVE_IDS, normalizeSpec, type CameraSpec } from "@lvs/camera-presets";
+import { BACKGROUND_KINDS, EASINGS, LENS_STYLES, PHOTO_FITS, STUDIO_MOVE_IDS, normalizeSpec, type CameraSpec } from "@lvs/camera-presets";
 
 const num = (min: number, max: number) => z.number().finite().min(min).max(max);
 const view = z.object({ x: num(-0.5, 0.5), y: num(-0.5, 0.5), zoom: num(1, 4), rotation: num(-30, 30) });
@@ -26,6 +26,14 @@ export const cameraSpecSchema = z.object({
   manual: z.object({
     horizontal: num(-10, 10), vertical: num(-10, 10), zoom: num(-10, 10), pan: num(-10, 10), tilt: num(-10, 10), rotate: num(-10, 10),
   }).nullable().optional(),
+  manualStart: z.object({ x: num(-0.5, 0.5), y: num(-0.5, 0.5), zoom: num(0.5, 3) }).nullable().optional(),
+  fit: z.enum(PHOTO_FITS).optional(),
+  background: z.object({
+    kind: z.enum(BACKGROUND_KINDS),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    color2: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  }).nullable().optional(),
+  safeArea: z.object({ x0: num(0, 1), y0: num(0, 1), x1: num(0, 1), y1: num(0, 1) }).nullable().optional(),
 }).transform((s) => normalizeSpec(s as CameraSpec));
 
 export const LENS_OPTIONS = LENS_STYLES;

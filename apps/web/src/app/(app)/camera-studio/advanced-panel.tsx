@@ -3,10 +3,13 @@ import { useState } from "react";
 import { Crosshair, Plus, Sparkles, Trash2 } from "lucide-react";
 import {
   AI_METHOD_LABELS, CINEMATIC_PRESETS, EASINGS, EASING_LABELS, LENS_DISCLAIMER, LENS_FEEL, LENS_STYLES, STUDIO_MOVES,
-  defaultSpec, presetSpec, type CameraKey, type CameraSpec, type CameraView, type Easing, type StandardQuality, type StudioMove,
+  PHOTO_FITS, PHOTO_FIT_LABELS, defaultSpec, presetSpec, specFit, type CameraKey, type CameraSpec, type CameraView, type Easing, type StandardQuality, type StudioMove,
 } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+/** A new move keeps the chosen framing. */
+const keepFraming = (from: CameraSpec, to: CameraSpec): CameraSpec => ({ ...to, fit: from.fit, background: from.background ?? null, safeArea: from.safeArea ?? null });
 
 type SetSpec = (fn: (s: CameraSpec) => CameraSpec, mergeKey?: string) => void;
 
@@ -64,6 +67,14 @@ export function AdvancedPanel({
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <label htmlFor="adv-fit" className="text-sm font-semibold">Framing</label>
+        <select id="adv-fit" value={specFit(spec)} onChange={(e) => setSpec((s) => ({ ...s, fit: e.target.value as CameraSpec["fit"] }))}
+          className="h-10 rounded-md border bg-background px-2 text-sm">
+          {PHOTO_FITS.map((f) => <option key={f} value={f}>{PHOTO_FIT_LABELS[f].label}</option>)}
+        </select>
+        <p className="text-xs text-muted-foreground">{PHOTO_FIT_LABELS[specFit(spec)].hint} Backgrounds and Smart Fit&apos;s area are set in Move camera.</p>
+      </div>
       <div role="tablist" aria-label="Advanced camera" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {TABS.map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
@@ -104,7 +115,7 @@ export function AdvancedPanel({
             <h4 className="text-sm font-semibold">Cinematic presets</h4>
             <div className="grid gap-2 sm:grid-cols-2">
               {CINEMATIC_PRESETS.map((p) => (
-                <button key={p.id} type="button" onClick={() => setSpec(() => presetSpec(p.id)!)}
+                <button key={p.id} type="button" onClick={() => setSpec((s) => keepFraming(s, presetSpec(p.id)!))}
                   className="flex flex-col items-start gap-0.5 rounded-lg border-2 border-border p-2.5 text-left hover:border-primary/50">
                   <span className="text-sm font-semibold">{p.name}</span>
                   <span className="text-xs text-muted-foreground">{p.description}</span>
@@ -155,7 +166,7 @@ export function AdvancedPanel({
               <TargetPicker url={photoUrl} target={spec.target} onPick={(t) => set("target", t, false)} />
             </div>
           ) : null}
-          <Button type="button" variant="outline" className="self-start" onClick={() => setSpec((s) => defaultSpec(s.move))}>Reset settings</Button>
+          <Button type="button" variant="outline" className="self-start" onClick={() => setSpec((s) => keepFraming(s, defaultSpec(s.move)))}>Reset settings</Button>
         </div>
       ) : null}
 

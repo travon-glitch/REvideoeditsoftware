@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   AI_METHOD_LABELS, EASY_CAMERAS, EASY_DURATIONS, INTENSITIES, LENS_FEEL, STANDARD_QUALITY_LABELS, cameraKeyframes, describeSpec,
-  easySpec, getStudioMove, isManualZero, transformAt, type CameraSpec, type CameraView, type EasyCameraId, type Intensity,
+  easySpec, getStudioMove, hasManual, transformAt, type CameraSpec, type CameraView, type EasyCameraId, type Intensity,
 } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -53,7 +53,8 @@ export function CameraStudio(p: StudioProps) {
   const [easyId, setEasyId] = useState<EasyCameraId>("closer");
   const [intensity, setIntensity] = useState<Intensity>("normal");
   const history = useHistory<Shot>({
-    spec: p.scene?.camera ?? photo?.camera ?? easySpec("closer", "normal"),
+    // new moves start with the whole photo in view (Show Entire Photo)
+    spec: p.scene?.camera ?? photo?.camera ?? { ...easySpec("closer", "normal"), fit: "contain" },
     duration: p.scene?.duration ? Math.min(10, Math.max(2, p.scene.duration)) : 5,
     aspect: p.scene?.aspect ?? "16:9",
   });
@@ -66,12 +67,16 @@ export function CameraStudio(p: StudioProps) {
   const onTime = useCallback((t: number) => { time.current = t; }, []);
 
   const setSpec = useCallback((fn: (s: CameraSpec) => CameraSpec, key?: string) => history.set((h) => ({ ...h, spec: fn(h.spec) }), key), [history]);
-  const pickEasy = (id: EasyCameraId, level = intensity) => { setEasyId(id); setIntensity(level); history.set((h) => ({ ...h, spec: easySpec(id, level) })); };
+  // a new move keeps the chosen framing (fit, background, Smart Fit area)
+  const keepFraming = (from: CameraSpec, to: CameraSpec): CameraSpec => ({ ...to, fit: from.fit ?? "cover", background: from.background ?? null, safeArea: from.safeArea ?? null });
+  const pickEasy = (id: EasyCameraId, level = intensity) => { setEasyId(id); setIntensity(level); history.set((h) => ({ ...h, spec: keepFraming(h.spec, easySpec(id, level)) })); };
   const choosePhoto = (id: string) => {
     setPhotoId(id);
     const saved = p.photos.find((x) => x.id === id)?.camera;
-    if (saved) history.set((h) => ({ ...h, spec: saved }));
+    // Smart Fit's safe area belongs to one photo: find it again for the next
+    history.set((h) => ({ ...h, spec: saved ?? { ...h.spec, safeArea: null } }));
   };
+  const [replay, setReplay] = useState(0);
 
   /* What the preview shows right now, as a view (for keyframes / frames). */
   const lensZoom = shot.spec.lens ? LENS_FEEL[shot.spec.lens].zoom : 1;
@@ -79,7 +84,11 @@ export function CameraStudio(p: StudioProps) {
     const c = CANVAS_1080[shot.aspect];
     const r = cameraKeyframes(shot.spec, shot.duration, c, photo?.width && photo.height ? { width: photo.width, height: photo.height } : null);
     const tr = transformAt(r.keyframes, time.current);
-    return { t: time.current, x: -tr.x / (tr.scale * c.width), y: -tr.y / (tr.scale * c.height), zoom: Math.max(1, tr.scale / (r.edgeGuard * lensZoom)), rotation: tr.rotation };
+    const kz = tr.scale / r.framing.zoom; // the view's own zoom × the edge guard / fit limit
+    return {
+      t: time.current, x: -tr.x / (kz * c.width) - (r.framing.zoom * r.framing.cx) / c.width, y: -tr.y / (kz * c.height) - (r.framing.zoom * r.framing.cy) / c.height,
+      zoom: Math.max(1, kz / (r.edgeGuard * r.fitScale * lensZoom)), rotation: tr.rotation,
+    };
   }, [shot, photo, lensZoom]);
 
   /* ── Activity (exports, AI jobs, AI clips) ── */
@@ -171,11 +180,11 @@ export function CameraStudio(p: StudioProps) {
   const photoUrls = useMemo(() => Object.fromEntries(p.photos.map((x) => [x.id, x.url])), [p.photos]);
   const previewPhoto = photo ? { url: photo.url, width: photo.width, height: photo.height } : null;
   const thumbPhoto = photo ? { url: photo.thumb ?? photo.url, width: photo.width, height: photo.height } : null;
-  const standInNote = isManualZero(shot.spec.manual) === false
-    ? (shot.spec.manual!.pan || shot.spec.manual!.tilt ? "Preview: pan and tilt shown as a slide (flat photo). The AI depth version turns the camera for real." : null)
+  const standInNote = hasManual(shot.spec)
+    ? (shot.spec.manual?.pan || shot.spec.manual?.tilt ? "Preview: pan and tilt shown as a slide (flat photo). The AI depth version turns the camera for real." : null)
     : move.requiresAI || move.standard === "stand-in"
     ? `Preview: 2D stand-in. A real ${move.name.toLowerCase()} needs ${move.ai.map((a) => AI_METHOD_LABELS[a]).join(" or ")}.` : null;
-  const manual = !isManualZero(shot.spec.manual);
+  const manual = hasManual(shot.spec);
   const canDepth = manual || move.ai.includes("depth");
 
   return (
@@ -253,7 +262,7 @@ export function CameraStudio(p: StudioProps) {
           <div className="flex flex-col gap-4">
             <Card>
               <CardContent className="flex flex-col gap-4 pt-6">
-                <CameraPreview photo={previewPhoto} spec={shot.spec} duration={shot.duration} aspect={shot.aspect} note={standInNote} onTime={onTime} />
+                <CameraPreview photo={previewPhoto} spec={shot.spec} duration={shot.duration} aspect={shot.aspect} note={standInNote} onTime={onTime} replay={replay} />
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-semibold">{describeSpec(shot.spec, shot.duration)}</span>
                   <QualityBadge move={move} />
@@ -358,8 +367,10 @@ export function CameraStudio(p: StudioProps) {
                 </div>
               ) : mode === "move" ? (
                 <MovementPanel spec={shot.spec} setSpec={setSpec} photoUrl={photo.url ?? photo.thumb} photoSize={photo.width && photo.height ? { width: photo.width, height: photo.height } : null} aspect={shot.aspect}
-                  busy={busy === "apply"} canApply={p.canEdit && !busy} onApply={() => void apply()}
-                  applyLabel={p.scene ? `Apply movement to ${p.scene.label}` : "Apply movement"} />
+                  duration={shot.duration} setDuration={(d) => history.set((h) => ({ ...h, duration: d }), "duration")}
+                  busy={busy === "apply"} canApply={p.canEdit && !busy} onApply={() => void apply()} onPreview={() => setReplay((n) => n + 1)}
+                  aiExtendAvailable={false}
+                  applyLabel={p.scene ? `Apply Camera Movement to ${p.scene.label}` : "Apply Camera Movement"} />
               ) : (
                 <AdvancedPanel spec={shot.spec} setSpec={setSpec} duration={shot.duration}
                   setDuration={(d) => history.set((h) => ({ ...h, duration: d }), "duration")} currentView={currentView} photoUrl={photo.thumb ?? photo.url} />

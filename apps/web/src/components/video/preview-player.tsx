@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { totalDuration, type EditPlan } from "@/lib/video/plan";
-import { StageView } from "./stage-view";
+import { StageView, type PhotoSizes } from "./stage-view";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -14,8 +14,9 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
  * With `time` / `onTime` the playhead is shared with the timeline.
  */
 export function PreviewPlayer({
-  plan, photoUrls, musicUrl, brandColor, clipUrls, voiceUrl, time: controlled, onTime,
+  plan, photoUrls, musicUrl, brandColor, clipUrls, voiceUrl, time: controlled, onTime, photoSizes,
 }: {
+  photoSizes?: PhotoSizes;
   plan: EditPlan; photoUrls: Record<string, string | null>; musicUrl: string | null; brandColor: string;
   clipUrls?: Record<string, string | null>; voiceUrl?: string | null;
   time?: number; onTime?: (t: number) => void;
@@ -94,7 +95,7 @@ export function PreviewPlayer({
 
   return (
     <div className="flex flex-col gap-3">
-      <StageView plan={plan} time={time} photoUrls={photoUrls} clipUrls={clipUrls} brandColor={brandColor} />
+      <StageView plan={plan} time={time} photoUrls={photoUrls} photoSizes={photoSizes} clipUrls={clipUrls} brandColor={brandColor} />
       {musicUrl ? <audio ref={music} src={musicUrl} preload="auto" /> : null}
       {voiceUrl ? <audio ref={voice} src={voiceUrl} preload="auto" /> : null}
       <div className="flex items-center gap-3">

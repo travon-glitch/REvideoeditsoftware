@@ -9,7 +9,7 @@
  * reopen it exactly.
  */
 import { z } from "zod";
-import { CAMERA_MOVES, cameraKeyframes, evalChannel, getMove, kenBurnsKeyframes, type CameraChannels } from "@lvs/camera-presets";
+import { BACKGROUND_LOOK, CAMERA_MOVES, cameraKeyframes, evalChannel, getMove, kenBurnsKeyframes, mixHex, type CameraChannels, type FrameBackground } from "@lvs/camera-presets";
 import { cameraSpecSchema } from "./camera";
 import { brandLayerClips, type BrandImage } from "./brand-layers";
 import { captionClips, itemKeyframes, musicClip, overlayClips, voiceClip } from "./editor-layers";
@@ -437,18 +437,25 @@ function textProps(t: TextOverlay, canvas: { width: number; height: number }, br
  * preview moves exactly like the export): a Camera Studio move if set,
  * otherwise the scene's simple move, or nothing for "Hold Still".
  */
+export interface SceneCamera {
+  keyframes: Partial<CameraChannels>;
+  props?: Record<string, number | string>;
+  /** Show Entire Photo / Smart Fit: what fills the frame around the photo. */
+  background?: FrameBackground | null;
+}
+
 export function sceneCamera(
   s: Pick<Scene, "move" | "camera"> & Partial<Pick<Scene, "segment" | "position">>, length: number, canvas: { width: number; height: number },
   photo?: { width: number | null; height: number | null } | null,
-): { keyframes: Partial<CameraChannels>; props?: Record<string, number> } | null {
+): SceneCamera | null {
   // after a split, each part shows its share of the whole move (same path, no jump)
   const seg = s.segment && s.segment.to > s.segment.from ? s.segment : null;
   const full = seg ? length / Math.max(0.05, seg.to - seg.from) : length;
-  let out: { keyframes: Partial<CameraChannels>; props?: Record<string, number> } | null = null;
+  let out: SceneCamera | null = null;
   if (s.camera) {
     const size = photo?.width && photo.height ? { width: photo.width, height: photo.height } : null;
     const r = cameraKeyframes(s.camera, full, canvas, size);
-    out = { keyframes: r.keyframes, props: r.props };
+    out = { keyframes: r.keyframes, props: r.props, background: r.background };
   } else if (s.move !== STILL) {
     out = { keyframes: kenBurnsKeyframes(s.move, full, canvas) };
   } else if (s.position) {
@@ -463,7 +470,40 @@ export function sceneCamera(
     if (!keys?.length) continue;
     cut[name] = Array.from({ length: steps + 1 }, (_, k) => ({ t: round((length * k) / steps), v: round(evalChannel(keys, from + ((seg.to - seg.from) * full * k) / steps, 0)), ...(k ? { ease: "linear" as const } : {}) }));
   }
-  return { keyframes: cut, props: out.props };
+  return { keyframes: cut, props: out.props, background: out.background };
+}
+
+/**
+ * The layer behind a Show Entire Photo / Smart Fit scene, on track V0 (under the photo), for the
+ * scene's whole time and with its transitions, so it never leaves a black gap while the photo
+ * moves. Blurred photo: the same photo, cover-fitted, softened and slightly darkened.
+ */
+export function backgroundClips(
+  bg: FrameBackground, scene: { id: string; mediaId: string; start: number; duration: number; transitionIn?: unknown; transitionOut?: unknown; filterPreset?: string },
+  canvas: { width: number; height: number },
+): Record<string, unknown>[] {
+  const base = {
+    id: `c_bg_${scene.id}`, track: "V0", start: scene.start, in: 0, duration: scene.duration, name: "Background",
+    ...(scene.transitionIn ? { transitionIn: scene.transitionIn } : {}), ...(scene.transitionOut ? { transitionOut: scene.transitionOut } : {}),
+  };
+  const { width: W, height: H } = canvas;
+  if (bg.kind === "color") {
+    return [{ ...base, mediaId: null, kind: "shape", props: { shapes: [{ type: "rect", w: W, h: H, fill: bg.color }] } }];
+  }
+  if (bg.kind === "gradient") {
+    const n = BACKGROUND_LOOK.gradientBands, bh = H / n;
+    const shapes = Array.from({ length: n }, (_, i) => ({ type: "rect", y: round(-H / 2 + bh * (i + 0.5)), w: W, h: round(bh + 2), fill: mixHex(bg.color, bg.color2, i / (n - 1)) }));
+    return [{ ...base, mediaId: null, kind: "shape", props: { shapes } }];
+  }
+  // blurred photo ("AI extended" uses it too until an extended picture exists)
+  return [{
+    ...base, mediaId: scene.mediaId, kind: "image",
+    props: {
+      fit: "cover", scale: BACKGROUND_LOOK.scale, brightness: BACKGROUND_LOOK.brightness,
+      blur: Math.round(Math.min(W, H) * BACKGROUND_LOOK.blurOfShortSide),
+      ...(scene.filterPreset ? { filterPreset: scene.filterPreset } : {}),
+    },
+  }];
 }
 
 /** Transition into scene i (none for the first) and its length. */
@@ -552,11 +592,13 @@ export function composeDocument(input: {
 
   const total = totalDuration(plan);
   const starts = sceneStarts(plan);
+  const backgrounds: Record<string, unknown>[] = [];
   const clips: Record<string, unknown>[] = plan.scenes.map((s, i) => {
     const last = i === plan.scenes.length - 1;
     const into = sceneTransition(plan, i), next = sceneTransition(plan, i + 1);
     const length = round(s.duration + (last ? 0 : next.seconds));
     const aiClip = s.clipAssetId ? clipById.get(s.clipAssetId)! : null;
+    let bg: FrameBackground | null = null;
     const clip: Record<string, unknown> = {
       id: `c_${s.id}`,
       mediaId: mediaIdFor(aiClip ? aiClip.id : s.assetId),
@@ -573,6 +615,7 @@ export function composeDocument(input: {
     if (!aiClip) {
       const photo = photoById.get(s.assetId);
       const cam = sceneCamera(s, length, canvas, photo);
+      bg = cam?.background ?? null;
       if (cam) {
         clip.keyframes = cam.keyframes;
         if (cam.props) clip.props = { ...(clip.props as object), ...cam.props };
@@ -580,8 +623,16 @@ export function composeDocument(input: {
     }
     if (into.seconds > 0) clip.transitionIn = { type: into.type, duration: into.seconds };
     if (last && plan.transition !== "none") clip.transitionOut = { type: "fade", duration: Math.min(1, s.duration / 2) };
+    if (!aiClip && bg) {
+      backgrounds.push(...backgroundClips(bg, {
+        id: s.id, mediaId: clip.mediaId as string, start: clip.start as number, duration: clip.duration as number,
+        transitionIn: clip.transitionIn, transitionOut: clip.transitionOut,
+        filterPreset: plan.look && plan.look.filter !== "none" ? plan.look.filter : undefined,
+      }, canvas));
+    }
     return clip;
   });
+  clips.push(...backgrounds);
 
   plan.texts.forEach((t, i) => {
     const scene = resolveScene(plan, t.sceneId);
@@ -644,6 +695,7 @@ export function composeDocument(input: {
       ...(plan.captions?.enabled && plan.captions.cues.length ? [{ id: "V10", kind: "video" }] : []),
       ...(plan.branding || plan.look?.letterbox || plan.captions?.enabled ? ["V9", "V8", "V7", "V6", "V5"].map((idv) => ({ id: idv, kind: "video" })) : []),
       { id: "V4", kind: "video" }, { id: "V3", kind: "video" }, { id: "V2", kind: "video" }, { id: "V1", kind: "video" },
+      ...(backgrounds.length ? [{ id: "V0", kind: "video" }] : []),
       { id: "A1", kind: "audio" }, { id: "A2", kind: "audio" },
     ],
     media,

@@ -69,6 +69,7 @@ export default async function EditVideoPage({ params, searchParams }: { params: 
           initialRevision={project.revision}
           photos={assets.photos.map((p) => ({
             id: p.id, url: photoUrls[p.storage_path] ?? null, thumb: (p.thumbnail_path && photoUrls[p.thumbnail_path]) || null, file_name: p.file_name,
+            width: p.width ?? null, height: p.height ?? null,
           }))}
           initialMusic={assets.music.map((m) => ({ ...m, url: musicUrls[m.storage_path] ?? null }))}
           initialRenders={(renders ?? []) as EditorRender[]}

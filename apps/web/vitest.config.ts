@@ -3,6 +3,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [tsconfigPaths({ projects: ["./tsconfig.json"] })],
+  // the same JSX runtime as Next.js, so tests can render the app's components
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     include: process.env.LVS_RENDER_TESTS ? ["tests/render/**/*.test.ts"] : ["src/**/*.test.ts", "tests/**/*.test.ts"],

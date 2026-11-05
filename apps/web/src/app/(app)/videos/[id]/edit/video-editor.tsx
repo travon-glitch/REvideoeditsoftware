@@ -29,7 +29,7 @@ import { Timeline, type Selection } from "./timeline";
 import { CaptionsPanel, MusicPanel, OverlayInspector, SceneInspector, TextInspector, VoicePanel, type VoiceOption } from "./inspector";
 import { EasyEditor } from "./easy-editor";
 
-export interface EditorPhoto { id: string; url: string | null; thumb?: string | null; file_name: string }
+export interface EditorPhoto { id: string; url: string | null; thumb?: string | null; file_name: string; width?: number | null; height?: number | null }
 export interface EditorMusic { id: string; url: string | null; file_name: string; duration_seconds: number | null }
 export interface EditorRender {
   id: string; aspect: Aspect; status: "queued" | "running" | "succeeded" | "failed" | "cancelled"; progress: number;
@@ -81,6 +81,7 @@ export function VideoEditor({
     on(); mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
+  const photoSizes = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, { width: p.width ?? null, height: p.height ?? null }])), [photos]);
   const photoUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, (lightPreview && p.thumb) || p.url])), [photos, lightPreview]);
   const thumbUrls = useMemo(() => Object.fromEntries(photos.map((p) => [p.id, p.thumb ?? p.url ?? null])), [photos]);
   const clipUrls = useMemo(() => Object.fromEntries(clips.map((c) => [c.id, c.url])), [clips]);
@@ -265,7 +266,7 @@ export function VideoEditor({
         <>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <Card><CardContent className="pt-6">
-              <PreviewPlayer plan={plan} photoUrls={photoUrls} clipUrls={clipUrls} musicUrl={musicUrl} voiceUrl={voiceUrl} brandColor={brandColor} time={time} onTime={setTime} />
+              <PreviewPlayer plan={plan} photoUrls={photoUrls} photoSizes={photoSizes} clipUrls={clipUrls} musicUrl={musicUrl} voiceUrl={voiceUrl} brandColor={brandColor} time={time} onTime={setTime} />
             </CardContent></Card>
             <Card className="self-start">
               <CardHeader className="pb-2">

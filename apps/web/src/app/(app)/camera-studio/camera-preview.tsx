@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
-import { cameraKeyframes, transformAt, type CameraSpec, type Transform } from "@lvs/camera-presets";
+import { cameraKeyframes, photoScale, transformAt, type CameraSpec, type FrameBackground, type Transform } from "@lvs/camera-presets";
+import { PhotoLayer } from "@/components/video/photo-layer";
 import { Button } from "@/components/ui/button";
 import { CANVAS_1080, type Aspect } from "@/lib/video/plan";
 import { cn } from "@/lib/utils";
@@ -16,16 +17,15 @@ export function useCameraKeys(spec: CameraSpec, duration: number, aspect: Aspect
   }, [spec, duration, aspect, photo?.width, photo?.height]);
 }
 
-/** One frame: the photo moved exactly like the export (x/y in 1080p px → % of the frame). */
-export function Frame({ url, tr, aspect, className, children }: { url: string | null; tr: Transform; aspect: Aspect; className?: string; children?: React.ReactNode }) {
+/** One frame: the photo moved and framed exactly like the export (x/y in 1080p px → % of the frame). */
+export function Frame({ url, tr, aspect, fit = "cover", background = null, drawn = null, className, children }: {
+  url: string | null; tr: Transform; aspect: Aspect; fit?: "contain" | "cover"; background?: FrameBackground | null;
+  drawn?: { iw: number; ih: number } | null; className?: string; children?: React.ReactNode;
+}) {
   const c = CANVAS_1080[aspect];
   return (
     <div className={cn("relative w-full overflow-hidden bg-black", className)} style={{ aspectRatio: `${c.width} / ${c.height}` }}>
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="" className="absolute inset-0 size-full object-cover will-change-transform"
-          style={{ transform: `translate(${(tr.x / c.width) * 100}%, ${(tr.y / c.height) * 100}%) rotate(${tr.rotation}deg) scale(${tr.scale})` }} />
-      ) : null}
+      <PhotoLayer url={url} tr={tr} canvas={c} fit={fit} background={background} drawn={drawn} />
       {children}
     </div>
   );
@@ -35,10 +35,12 @@ const fmt = (s: number) => `${s.toFixed(1)} s`;
 
 /** The large live preview with play / pause / scrub. */
 export function CameraPreview({
-  photo, spec, duration, aspect, note, onTime,
+  photo, spec, duration, aspect, note, onTime, replay = 0,
 }: {
   photo: PreviewPhoto | null; spec: CameraSpec; duration: number; aspect: Aspect; note?: React.ReactNode;
   onTime?: (t: number) => void;
+  /** Change it to play the movement again from the start ("Preview Movement"). */
+  replay?: number;
 }) {
   const keys = useCameraKeys(spec, duration, aspect, photo);
   const [time, setTime] = useState(0);
@@ -61,12 +63,16 @@ export function CameraPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, duration, stop]);
   useEffect(() => { onTime?.(time); }, [time, onTime]);
+  useEffect(() => {
+    if (!replay) return;
+    setTime(0); began.current = performance.now(); setPlaying(true);
+  }, [replay]);
 
   const tr = transformAt(keys.keyframes, time);
   return (
     <div className="flex flex-col gap-3">
       <div className="mx-auto w-full" style={{ maxWidth: aspect === "16:9" ? "100%" : aspect === "1:1" ? "520px" : "340px" }}>
-        <Frame url={photo?.url ?? null} tr={tr} aspect={aspect} className="rounded-xl">
+        <Frame url={photo?.url ?? null} tr={tr} aspect={aspect} fit={keys.props.fit} background={keys.background} drawn={keys.framing} className="rounded-xl">
           {note ? <div className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-3 py-1.5 text-center text-xs font-medium text-white">{note}</div> : null}
         </Frame>
       </div>
@@ -79,9 +85,12 @@ export function CameraPreview({
           onChange={(e) => { setPlaying(false); setTime(Number(e.target.value)); }} className="h-2 flex-1 cursor-pointer accent-[hsl(var(--primary))]" />
         <span className="w-24 text-right text-sm tabular-nums text-muted-foreground">{fmt(time)} / {fmt(duration)}</span>
       </div>
-      {keys.edgeGuard > 1.001 ? (
-        <p className="text-xs text-muted-foreground">Zoomed in {Math.round((keys.edgeGuard - 1) * 100)}% so the edges of the photo never show.</p>
-      ) : null}
+      <p className="text-xs text-muted-foreground">
+        {keys.mode === "cover"
+          ? `Fill Screen shows ${Math.round(keys.framing.visible.w * keys.framing.visible.h * 100)}% of this photo${keys.edgeGuard > 1.001 ? `, zoomed in ${Math.round((keys.edgeGuard - 1) * 100)}% more so its edges never show` : ""}.`
+          : `Photo size now: ${photoScale(keys.framing, tr, CANVAS_1080[aspect]).toFixed(2)}× (1.00× = the whole photo just fits).`}
+        {keys.fitScale < 0.999 ? ` The movement was made ${Math.round((1 - keys.fitScale) * 100)}% smaller so the ${keys.mode === "smart" ? "home" : "whole photo"} stays in view.` : ""}
+      </p>
     </div>
   );
 }
@@ -106,7 +115,7 @@ export function MiniCameraPreview({ photo, spec, aspect = "16:9", seconds = 3 }:
   }, [seconds]);
   return (
     <div ref={box} aria-hidden="true">
-      <Frame url={photo?.url ?? null} tr={transformAt(keys.keyframes, Math.min(seconds, t))} aspect={aspect} />
+      <Frame url={photo?.url ?? null} tr={transformAt(keys.keyframes, Math.min(seconds, t))} aspect={aspect} fit={keys.props.fit} background={keys.background} drawn={keys.framing} />
     </div>
   );
 }

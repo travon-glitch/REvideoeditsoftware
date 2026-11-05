@@ -51,7 +51,7 @@ export function EasyEditor(p: {
       return { ...next, music: { ...cur.music, ...next.music, assetId: cur.music.assetId, volume: cur.music.volume }, voiceover: cur.voiceover, captions: cur.captions, overlays: cur.overlays, logoAssetId: cur.logoAssetId, branding: cur.branding, look: cur.look };
     });
   };
-  const cameraForAll = (id: EasyCameraId) => update((cur) => ({ ...cur, scenes: cur.scenes.map((s) => (s.clipAssetId ? s : { ...s, camera: easySpec(id, "normal"), move: "still", position: undefined, segment: undefined })) }));
+  const cameraForAll = (id: EasyCameraId) => update((cur) => ({ ...cur, scenes: cur.scenes.map((s) => (s.clipAssetId ? s : { ...s, camera: { ...easySpec(id, "normal"), fit: "contain" as const }, move: "still", position: undefined, segment: undefined })) }));
   const cameraOf = (s: EditPlan["scenes"][number]): string => {
     if (s.clipAssetId) return "ai";
     if (!s.camera) return s.move === "still" ? "still" : "simple";
@@ -75,7 +75,7 @@ export function EasyEditor(p: {
     <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="flex flex-col gap-4">
         <Card><CardHeader className="pb-2"><CardTitle>Video preview</CardTitle></CardHeader><CardContent>
-          <PreviewPlayer plan={plan} photoUrls={p.photoUrls} clipUrls={p.clipUrls} musicUrl={p.musicUrl} voiceUrl={p.voiceUrl} brandColor={p.brandColor} />
+          <PreviewPlayer plan={plan} photoUrls={p.photoUrls} photoSizes={Object.fromEntries(p.photos.map((x) => [x.id, { width: x.width ?? null, height: x.height ?? null }]))} clipUrls={p.clipUrls} musicUrl={p.musicUrl} voiceUrl={p.voiceUrl} brandColor={p.brandColor} />
         </CardContent></Card>
 
         <Card>
@@ -97,7 +97,7 @@ export function EasyEditor(p: {
                   <label className="sr-only" htmlFor={`cam-${s.id}`}>Camera movement for photo {i + 1}</label>
                   <NativeSelect id={`cam-${s.id}`} className="h-9 text-xs" value={cameraOf(s)} onChange={(e) => {
                     const v = e.target.value;
-                    update((cur) => ({ ...cur, scenes: cur.scenes.map((x) => (x.id !== s.id ? x : v === "still" ? { ...x, move: "still", camera: undefined, position: undefined, segment: undefined } : { ...x, move: "still", camera: easySpec(v as EasyCameraId, "normal"), position: undefined, segment: undefined })) }));
+                    update((cur) => ({ ...cur, scenes: cur.scenes.map((x) => (x.id !== s.id ? x : v === "still" ? { ...x, move: "still", camera: undefined, position: undefined, segment: undefined } : { ...x, move: "still", camera: { ...easySpec(v as EasyCameraId, "normal"), fit: "contain" as const }, position: undefined, segment: undefined })) }));
                   }}>
                     {cameraOf(s) === "ai" ? <option value="ai">AI camera clip</option> : null}
                     {cameraOf(s) === "custom" || cameraOf(s) === "simple" ? <option value={cameraOf(s)}>Custom move</option> : null}
