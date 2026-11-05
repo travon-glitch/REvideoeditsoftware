@@ -36,7 +36,7 @@ buckets (`listing-media`, `brand-assets`, `video-exports`) and five built-in tem
 `supabase/config.toml` does this locally. On the hosted project, in the dashboard:
 
 1. **Authentication → Sign In / Providers →** turn **off** "Allow new users to sign up".
-2. **Authentication → Sign In / Providers → Email:** keep email enabled; set minimum password length to 12.
+2. **Authentication → Sign In / Providers → Email:** keep the **Email provider enabled** (switching it off blocks every login with "Email logins are disabled"); set minimum password length to 12.
 3. **Authentication → URL Configuration:** Site URL = your app URL (for example `https://video.yourcompany.com`);
    add `https://video.yourcompany.com/auth/confirm` to Redirect URLs.
 4. **Authentication → Emails → Templates:** point the links at `/auth/confirm` so they work with server-side sessions:

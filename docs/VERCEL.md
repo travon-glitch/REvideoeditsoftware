@@ -14,7 +14,8 @@ You can sign in and set everything up with only Supabase and Vercel (steps 1 to 
 
 1. Create a project at supabase.com. Note its **region**; choose the same region on Vercel later.
 2. **SQL Editor → New query.** Paste all of [`supabase/setup.sql`](../supabase/setup.sql) and press **Run**. It creates every table, access rule, function and the six private storage buckets. Run it only once on a new project.
-3. **Authentication → Sign In / Providers → Email:** turn **off** "Allow new users to sign up". People are added only by an administrator inside the app. Leave "Confirm email" on.
+3. **Authentication → Sign In / Providers:** turn **off** the project-wide **"Allow new users to sign up"** switch (under *User Signups*). People are added only by an administrator inside the app.
+   **Leave the Email provider itself enabled** (*Email* in the provider list, "Enable Email provider" on). Switching the provider off blocks every login ("Email logins are disabled"). Leave "Confirm email" on.
 4. **Authentication → Emails → Templates:** paste these into the matching templates (Subject lines are at the top of each file):
    - [`supabase/templates/invite.html`](../supabase/templates/invite.html) into **Invite user**;
    - [`supabase/templates/recovery.html`](../supabase/templates/recovery.html) into **Reset password**;
@@ -101,6 +102,15 @@ On a plain server, put HTTPS in front of port 8790 (for example Caddy). The voic
 - **Website:** push to GitHub; Vercel redeploys by itself.
 - **Database:** for each **new** file in `supabase/migrations/`, paste it into the SQL Editor and run it, oldest first. Or run `npx supabase db push`, which keeps track of what's applied. Never re-run `setup.sql` on a live project.
 - **Workers:** redeploy the container. The platform rebuilds it from GitHub.
+
+## If the site says "Almost ready" or nobody can sign in
+
+| What you see | Cause | Fix |
+|---|---|---|
+| **"Almost ready – this app isn't connected to its database yet"** | `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` is missing or malformed **in the build that's live** | Add both in Vercel → Settings → Environment Variables (Production, and Preview if you use it). The URL must be the full `https://<ref>.supabase.co`. Then **Redeploy**: `NEXT_PUBLIC_` values are built into the site, so adding them without redeploying changes nothing. |
+| "Sign-in by email is switched off in Supabase" | The Email provider was disabled instead of sign-ups | Supabase → Authentication → Sign In / Providers → Email → enable it (step 1.3) |
+| "That email and password don't match" for everyone | No account yet | Create the first one with `supabase/first-login.sql` → `/setup` (step 4) |
+| `/setup` says the code is wrong or expired | Codes last 60 minutes and only the newest works | Run `first-login.sql` again and use the new code |
 
 ## Limits on Vercel to know about
 

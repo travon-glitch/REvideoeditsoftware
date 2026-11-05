@@ -32,12 +32,26 @@ minimum_password_length = 12
 password_requirements = "lower_upper_letters_digits"
 
 [auth.email]
-enable_signup = false
+# This switch is the EMAIL PROVIDER itself: false would block email LOGIN too ("Email logins are
+# disabled"). Sign-ups are turned off by `[auth] enable_signup = false` above.
+enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
 secure_password_change = true
 max_frequency = "1m0s"
 otp_expiry = 3600
+
+[auth.email.template.invite]
+subject = "You're invited to the company video studio"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.recovery]
+subject = "Choose a new password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email address"
+content_path = "./supabase/templates/email-change.html"
 
 [auth.sms]
 enable_signup = false
