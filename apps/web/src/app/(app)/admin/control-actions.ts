@@ -89,7 +89,7 @@ export async function saveProviderKey(_prev: ActionResult | null, formData: Form
   const spec = PROVIDER_KEYS[provider];
   const key = String(formData.get("api_key") ?? "").trim();
   if (!spec.pattern.test(key)) return { ok: false, message: "That doesn't look like a complete API key.", fieldErrors: { api_key: "Paste the full key." } };
-  if (!secretsConfigured()) return { ok: false, message: "The server can't store secrets yet: set LVS_SECRETS_KEY (32 random bytes, base64) on the web server and the AI worker." };
+  if (!secretsConfigured()) return { ok: false, message: "The server can't store keys: SUPABASE_SERVICE_ROLE_KEY isn't set on the web server." };
   // the database confirms the caller is the Super Admin (and logs it) before anything is stored
   const supabase = await createClient();
   const { error: denied } = await supabase.rpc("record_admin_action", { p_action: "provider.key_set", p_meta: { provider, last4: key.slice(-4) } });

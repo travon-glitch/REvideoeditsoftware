@@ -304,7 +304,7 @@ export async function saveClaudeKey(_prev: ActionResult | null, formData: FormDa
   if (!auth.ok) return auth.result;
   const key = String(formData.get("api_key") ?? "").trim();
   if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key)) return { ok: false, message: "That doesn't look like a Claude API key (it starts with sk-ant-).", fieldErrors: { api_key: "Paste the full key." } };
-  if (!secretsConfigured()) return { ok: false, message: "The server can't store secrets yet: set LVS_SECRETS_KEY (32 random bytes, base64) on the server, or set ANTHROPIC_API_KEY there instead." };
+  if (!secretsConfigured()) return { ok: false, message: "The server can't store keys: SUPABASE_SERVICE_ROLE_KEY isn't set on the web server." };
   const admin = createAdminClient();
   const { error } = await admin.from("organization_secrets").upsert({
     organization_id: auth.ctx.organization.id, name: "anthropic_api_key", ciphertext: encryptSecret(key), last4: key.slice(-4),

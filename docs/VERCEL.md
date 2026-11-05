@@ -43,7 +43,7 @@ You can sign in and set everything up with only Supabase and Vercel (steps 1 to 
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key |
 | `NEXT_PUBLIC_SITE_URL` | Your site address, for example `https://video.yourcompany.com`, or `https://<project>.vercel.app` until you add a domain |
-| `LVS_SECRETS_KEY` | From step 1.7 |
+| `LVS_SECRETS_KEY` | Optional. From step 1.7. Without it, keys typed into the AI control panel are encrypted with a key derived from the service-role key (if you later rotate that key, re-enter the AI keys) |
 | `LVS_VOICE_SERVICE_URL` | The container's HTTPS address (step 6). Leave it empty until then. |
 | `LVS_VOICE_SERVICE_SECRET` | From step 1.7 |
 | `LVS_ERROR_WEBHOOK_URL` | Optional: a Slack or Teams webhook for error alerts |
@@ -109,6 +109,9 @@ On a plain server, put HTTPS in front of port 8790 (for example Caddy). The voic
 |---|---|---|
 | **"Almost ready – this app isn't connected to its database yet"** | `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` is missing or malformed **in the build that's live** | Add both in Vercel → Settings → Environment Variables (Production, and Preview if you use it). The URL must be the full `https://<ref>.supabase.co`. Then **Redeploy**: `NEXT_PUBLIC_` values are built into the site, so adding them without redeploying changes nothing. |
 | "Sign-in by email is switched off in Supabase" | The Email provider was disabled instead of sign-ups | Supabase → Authentication → Sign In / Providers → Email → enable it (step 1.3) |
+| AI control panel: key boxes greyed out | `SUPABASE_SERVICE_ROLE_KEY` isn't set on Vercel | Add it and redeploy |
+| AI control panel: "Settings are not available" | The company's settings row was missing (first account not made through `/setup`) | Fixed automatically from this version; or run `supabase/migrations/20261115000100_settings_self_heal.sql` in the SQL Editor |
+| "Claude rejected this key" with "Using the server's ANTHROPIC_API_KEY" | The `ANTHROPIC_API_KEY` set on Vercel is wrong or revoked | Type a valid key into the panel and press **Save key** (a saved key replaces the server's), or fix or remove it in Vercel and redeploy |
 | "That email and password don't match" for everyone | No account yet | Create the first one with `supabase/first-login.sql` → `/setup` (step 4) |
 | `/setup` says the code is wrong or expired | Codes last 60 minutes and only the newest works | Run `first-login.sql` again and use the new code |
 

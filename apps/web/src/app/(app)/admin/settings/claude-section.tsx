@@ -46,14 +46,14 @@ export function ClaudeKeyForm({ status, envKey, canStore }: { status: { configur
       <p className="flex items-center gap-2 text-base">
         <KeyRound className="size-5 text-muted-foreground" aria-hidden="true" />
         {status?.configured ? <>Key saved, ends in <strong>…{status.last4}</strong>. It can't be shown again — only replaced or removed.</>
-          : envKey ? "Using the server's ANTHROPIC_API_KEY." : "No Claude API key yet."}
+          : envKey ? "Using the server's ANTHROPIC_API_KEY. A key saved here replaces it." : "No Claude API key yet."}
       </p>
       <form action={action} className="flex flex-col gap-3" noValidate>
         <FormMessage state={state} />
         <Field label={status?.configured ? "Replace the API key" : "Claude API key"} htmlFor="api_key" hint="From the Claude Console. Stored encrypted; never shown in the browser again." error={errorFor(state, "api_key")}>
           <Input name="api_key" type="password" autoComplete="off" placeholder="sk-ant-…" disabled={!canStore} />
         </Field>
-        {!canStore ? <p className="text-sm text-warning">The server can't store keys until LVS_SECRETS_KEY is set (or set ANTHROPIC_API_KEY on the server).</p> : null}
+        {!canStore ? <p className="text-sm text-warning">The server can&apos;t store keys: SUPABASE_SERVICE_ROLE_KEY (or LVS_SECRETS_KEY) isn&apos;t set on the web server.</p> : null}
         <div className="flex flex-wrap gap-2">
           <SubmitButton disabled={!canStore}>Save key</SubmitButton>
           <Button type="button" variant="outline" disabled={pending || (!status?.configured && !envKey)} onClick={() => start(async () => setMsg(await testClaudeConnection()))}>

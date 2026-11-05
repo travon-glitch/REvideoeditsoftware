@@ -31,6 +31,9 @@ export default async function AiControlPanelPage({ searchParams }: { searchParam
   const before = sp.before && !Number.isNaN(Date.parse(sp.before)) ? sp.before : null;
 
   const db = await createClient();
+  // a company whose settings row is missing gets one (the database checks the caller is an administrator)
+  const { data: hasSettings } = await db.from("organization_settings").select("organization_id").eq("organization_id", ctx.organization.id).maybeSingle();
+  if (!hasSettings) await db.rpc("ensure_org_settings");
   const [{ data: settings }, { data: dash }, { data: keys }, { data: claudeKey }, { data: people }, { data: log }, { data: failures }] = await Promise.all([
     db.from("organization_settings").select("*").eq("organization_id", ctx.organization.id).maybeSingle(),
     db.rpc("admin_dashboard"),

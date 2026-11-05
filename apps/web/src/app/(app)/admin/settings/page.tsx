@@ -12,6 +12,8 @@ export const metadata = { title: "System settings" };
 export default async function SettingsPage() {
   const ctx = await requirePermission("settings.manage");
   const supabase = await createClient();
+  const { data: hasSettings } = await supabase.from("organization_settings").select("organization_id").eq("organization_id", ctx.organization.id).maybeSingle();
+  if (!hasSettings) await supabase.rpc("ensure_org_settings");
   const { data: settings } = await supabase.from("organization_settings").select("*").eq("organization_id", ctx.organization.id).maybeSingle();
   return (
     <div className="flex flex-col gap-6">

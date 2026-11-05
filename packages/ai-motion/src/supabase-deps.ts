@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { GenerationDeps, GenerationJob } from "./process-job.ts";
 import type { GenerativeProvider } from "./providers/types.ts";
 import { MuapiProvider } from "./providers/muapi.ts";
-import { decryptSecret, secretsKey } from "./secrets.ts";
+import { canReadSavedKeys, decryptSecret } from "./secrets.ts";
 
 export function supabaseFromEnv(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -21,7 +21,7 @@ export function providersFromEnv(env = process.env): Record<string, GenerativePr
 
 /** Providers this worker can serve: keys set here, plus company keys saved in the admin panel (when it can decrypt them). */
 export function servableProviders(env = process.env): string[] {
-  return [...new Set([...Object.keys(providersFromEnv(env)), ...(secretsKey(env) ? ["muapi"] : [])])];
+  return [...new Set([...Object.keys(providersFromEnv(env)), ...(canReadSavedKeys(env) ? ["muapi"] : [])])];
 }
 
 /**
@@ -31,11 +31,10 @@ export function servableProviders(env = process.env): string[] {
  */
 export async function providersForJob(db: SupabaseClient, job: GenerationJob, envProviders: Record<string, GenerativeProvider>, env = process.env): Promise<Record<string, GenerativeProvider>> {
   if (job.provider !== "muapi") return envProviders;
-  const key = secretsKey(env);
-  if (key) {
+  if (canReadSavedKeys(env)) {
     const { data } = await db.from("organization_secrets").select("ciphertext").eq("organization_id", job.organization_id).eq("name", "muapi_api_key").maybeSingle();
     if (data?.ciphertext) {
-      return { ...envProviders, muapi: new MuapiProvider({ apiKey: decryptSecret(data.ciphertext as string, key), model: job.model || undefined, baseUrl: env.MUAPI_BASE_URL }) };
+      return { ...envProviders, muapi: new MuapiProvider({ apiKey: decryptSecret(data.ciphertext as string, null, env), model: job.model || undefined, baseUrl: env.MUAPI_BASE_URL }) };
     }
   }
   if (env.MUAPI_API_KEY) return { ...envProviders, muapi: new MuapiProvider({ apiKey: env.MUAPI_API_KEY, model: job.model || env.MUAPI_I2V_MODEL, baseUrl: env.MUAPI_BASE_URL }) };

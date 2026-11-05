@@ -4,14 +4,14 @@
 -- FOR A NEW, EMPTY SUPABASE PROJECT. Run it once:
 --   Supabase dashboard → SQL Editor → New query → paste this whole file → Run.
 -- It creates every table, access rule (Row-Level Security), function and the six
--- private storage buckets. It is the same as running the 14 files in
+-- private storage buckets. It is the same as running the 15 files in
 -- supabase/migrations/ in order (`npx supabase db push` does that too).
 --
 -- Don't run it twice on the same project. For later updates, run only the new
 -- migration files (see docs/VERCEL.md, "Updating").
 --
--- Migrations included: 20261102000100_foundation.sql … 20261114000100_production_hardening.sql
--- Checksum: 14a3040a0147c611
+-- Migrations included: 20261102000100_foundation.sql … 20261115000100_settings_self_heal.sql
+-- Checksum: a7d34f49cbc4a9ef
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- ════════ 20261102000100_foundation.sql ════════
@@ -3467,5 +3467,35 @@ begin
 end $$;
 create trigger render_jobs_size before insert on public.render_jobs
   for each row execute function private.check_render_size();
+
+commit;
+
+-- ════════ 20261115000100_settings_self_heal.sql ════════
+begin;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Every company always has its settings row.
+--
+-- The row is made by the first-login setup. If the first account was created some other way
+-- (by hand in the Supabase dashboard), it was missing and the admin pages said
+-- "Settings are not available". This adds it now, and lets an administrator's page add it
+-- again if it's ever missing.
+-- ════════════════════════════════════════════════════════════════════════════
+
+insert into public.organization_settings (organization_id)
+select id from public.organizations
+on conflict do nothing;
+
+create function public.ensure_org_settings() returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_org uuid := private.current_org_id();
+begin
+  if v_org is null or not private.has_role('admin') then
+    raise exception 'Only administrators can do this' using errcode = '42501';
+  end if;
+  insert into public.organization_settings (organization_id) values (v_org) on conflict do nothing;
+end $$;
+revoke all on function public.ensure_org_settings() from public, anon;
+grant execute on function public.ensure_org_settings() to authenticated;
 
 commit;

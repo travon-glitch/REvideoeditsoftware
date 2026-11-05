@@ -112,7 +112,7 @@ export async function systemHealth(db: Db, org: string, isSuperAdmin: boolean): 
     {
       name: "Secret storage",
       level: secretsConfigured() ? "ok" : (keys as { data: unknown }).data && Object.keys((keys as { data: Record<string, unknown> }).data).length ? "down" : "warn",
-      detail: secretsConfigured() ? "Provider keys can be saved and read (AES-256-GCM)" : "LVS_SECRETS_KEY isn't set — keys can't be saved or used",
+      detail: secretsConfigured() ? "Provider keys can be saved and read (AES-256-GCM)" : "Neither LVS_SECRETS_KEY nor SUPABASE_SERVICE_ROLE_KEY is set — keys can't be saved or used",
     },
   ];
 

@@ -219,6 +219,7 @@ export type Database = {
       start_video_batch: { Args: { p_listing_id: string; p_size: number; p_analysis?: Json; p_aspect?: string; p_planner?: string }; Returns: VideoBatchRow };
       my_generation_allowance: { Args: Record<PropertyKey, never>; Returns: Json };
       my_brand_rules: { Args: Record<PropertyKey, never>; Returns: Json };
+      ensure_org_settings: { Args: Record<PropertyKey, never>; Returns: undefined };
       provider_key_status: { Args: Record<PropertyKey, never>; Returns: Json };
       my_ai_features: { Args: Record<PropertyKey, never>; Returns: Json };
       start_local_ai: { Args: { p_kind: "voiceover" | "transcription"; p_project: string; p_model: string }; Returns: string };

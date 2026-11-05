@@ -91,7 +91,7 @@ export function ProviderKeyForm({ provider, last4, updatedAt, envKey, canStore }
         <Field label={last4 ? "Replace the API key" : "API key"} htmlFor={`${provider}_key`} hint={`${spec.hint} Stored encrypted; never shown in the browser again.`} error={errorFor(state, "api_key")}>
           <Input id={`${provider}_key`} name="api_key" type="password" autoComplete="off" disabled={!canStore} />
         </Field>
-        {!canStore ? <p className="text-sm text-warning">The server can&apos;t store keys until LVS_SECRETS_KEY is set on the web server and the AI worker.</p> : null}
+        {!canStore ? <p className="text-sm text-warning">The server can&apos;t store keys: SUPABASE_SERVICE_ROLE_KEY (or LVS_SECRETS_KEY) isn&apos;t set on the web server.</p> : null}
         <div className="flex flex-wrap gap-2">
           <SubmitButton disabled={!canStore}>Save key</SubmitButton>
           {last4 ? (
