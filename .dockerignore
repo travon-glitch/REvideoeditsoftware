@@ -1,0 +1,10 @@
+**/node_modules
+**/.next
+apps/web/test-output
+packages/voice/models
+packages/ai-motion/models
+reference
+.git
+**/.env*
+!**/.env.example
+docs/screenshots

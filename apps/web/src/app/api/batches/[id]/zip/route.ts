@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { apiAuth, jsonError } from "@/lib/api";
 import { createClient } from "@/lib/supabase/server";
 import { BUCKETS, isUuid } from "@/lib/storage";
@@ -28,6 +28,21 @@ export async function GET(request: NextRequest, { params }: Params) {
   const pathOf = new Map((renders ?? []).map((r) => [r.id, r.output_path]));
 
   const used = new Set<string>();
+  const name = zipName(`${status.value.batch.address || "listing"}-videos`, "zip", new Set());
+
+  // ?list=1: short-lived download links instead of the ZIP itself. The browser builds the ZIP from them,
+  // so the videos never pass through the web server (needed on Vercel, which caps function responses).
+  if (request.nextUrl.searchParams.get("list") === "1") {
+    const files: { name: string; url: string }[] = [];
+    for (const v of done) {
+      const path = pathOf.get(v.render!.id);
+      if (!path) continue;
+      const { data } = await db.storage.from(BUCKETS.videoExports).createSignedUrl(path, 300);
+      if (data?.signedUrl) files.push({ name: zipName(`${v.title}-${v.aspect.replace(":", "x")}`, "mp4", used), url: data.signedUrl });
+    }
+    return NextResponse.json({ name, files }, { headers: { "Cache-Control": "no-store" } });
+  }
+
   async function* files(): AsyncGenerator<ZipEntry> {
     for (const v of done) {
       const path = pathOf.get(v.render!.id);
@@ -37,7 +52,6 @@ export async function GET(request: NextRequest, { params }: Params) {
       yield { name: zipName(`${v.title}-${v.aspect.replace(":", "x")}`, "mp4", used), data: new Uint8Array(await data.arrayBuffer()) };
     }
   }
-  const name = zipName(`${status.value.batch.address || "listing"}-videos`, "zip", new Set());
   return new Response(zipStream(files()), {
     headers: { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" },
   });

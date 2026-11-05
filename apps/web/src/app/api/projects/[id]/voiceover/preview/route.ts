@@ -4,7 +4,7 @@ import { apiAuth, jsonError, readJson } from "@/lib/api";
 import { isUuid } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { allow } from "@/lib/rate-limit";
-import { voiceModelsAvailable } from "@lvs/voice";
+import { voiceEngine, voiceSetupHint } from "@/lib/video/voice-engine";
 import { isVoice, previewVoice } from "@/lib/video/voice-store";
 
 export const runtime = "nodejs";
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!auth.ok) return auth.response;
   const { id } = await params;
   if (!isUuid(id)) return jsonError(404, "Video not found.");
-  if (!voiceModelsAvailable().tts) return jsonError(503, "The voice engine isn't installed on this server yet.");
+  if (!(await voiceEngine().status()).tts) return jsonError(503, voiceSetupHint());
   // same rules as making the narration: the company's switch, the person's AI access, edit access to this video
   const db = await createClient();
   const [{ data: features }, { data: access }] = await Promise.all([db.rpc("my_ai_features"), db.rpc("project_access", { p_project: id })]);
@@ -30,6 +30,6 @@ export async function POST(request: NextRequest, { params }: Params) {
   let body;
   try { body = schema.safeParse(await readJson(request)); } catch { return jsonError(400, "The request could not be read."); }
   if (!body.success) return jsonError(400, "Choose a voice.");
-  const { wav, seconds } = previewVoice(body.data as { script: string; voice: Parameters<typeof previewVoice>[0]["voice"]; speed: number });
+  const { wav, seconds } = await previewVoice(body.data as { script: string; voice: Parameters<typeof previewVoice>[0]["voice"]; speed: number });
   return new Response(Buffer.from(wav), { headers: { "Content-Type": "audio/wav", "Cache-Control": "no-store", "X-Seconds": String(seconds) } });
 }

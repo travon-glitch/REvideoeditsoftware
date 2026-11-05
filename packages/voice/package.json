@@ -8,9 +8,14 @@
   "scripts": {
     "fetch-models": "node scripts/fetch-models.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "serve": "node src/server.ts"
   },
   "dependencies": {
     "sherpa-onnx-node": "2.0.1"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./service": "./src/service.ts"
   }
 }

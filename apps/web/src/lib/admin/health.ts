@@ -6,7 +6,7 @@ import "server-only";
  * integration. Nothing here changes data.
  */
 import { spawnSync } from "node:child_process";
-import { voiceModelsAvailable } from "@lvs/voice";
+import { voiceEngine } from "@/lib/video/voice-engine";
 import type { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { secretsConfigured } from "@/lib/secrets";
@@ -75,7 +75,9 @@ export async function systemHealth(db: Db, org: string, isSuperAdmin: boolean): 
   const ck = (claudeKey ?? {}) as { configured?: boolean; last4?: string };
   const served = new Set(workers.filter((w) => w.kind === "ai" && w.level !== "down").flatMap((w) => w.providers));
   const failed = (p: string) => (h.recent_failures ?? []).filter((x) => x.provider === p && x.at && Date.now() - Date.parse(x.at) < 24 * 3600_000).length;
-  const voice = voiceModelsAvailable();
+  const engine = voiceEngine();
+  const voice = await engine.status();
+  const onService = engine.where === "service";
   const providers: Check[] = [
     {
       name: "Claude (AI Director)",
@@ -96,14 +98,16 @@ export async function systemHealth(db: Db, org: string, isSuperAdmin: boolean): 
       detail: !f.depth ? "Switched off" : served.has("local-depth") ? `An AI worker serves it${failed("local-depth") ? ` · ${failed("local-depth")} failed in 24 h` : ""}` : "No AI worker with the depth model is running",
     },
     {
-      name: "AI narration (this server)",
-      level: !f.voiceover ? "off" : voice.tts && ffmpegAvailable() ? "ok" : "down",
-      detail: !f.voiceover ? "Switched off" : !voice.tts ? "Voice model not installed (npm run fetch-models -w @lvs/voice)" : !ffmpegAvailable() ? "FFmpeg is missing on the web server" : "Voice model installed",
+      name: `AI narration (${onService ? "voice service" : "this server"})`,
+      level: !f.voiceover ? "off" : voice.tts && (onService || ffmpegAvailable()) ? "ok" : "down",
+      detail: !f.voiceover ? "Switched off"
+        : onService ? (voice.tts ? "Voice service connected" : "The voice service isn't answering (check LVS_VOICE_SERVICE_URL / LVS_VOICE_SERVICE_SECRET)")
+        : !voice.tts ? "Voice model not installed (npm run fetch-models -w @lvs/voice, or set up the voice service)" : !ffmpegAvailable() ? "FFmpeg is missing on the web server" : "Voice model installed",
     },
     {
-      name: "Automatic captions (this server)",
+      name: `Automatic captions (${onService ? "voice service" : "this server"})`,
       level: !f.captions ? "off" : voice.asr ? "ok" : "down",
-      detail: !f.captions ? "Switched off" : voice.asr ? "Speech recognition model installed" : "Speech recognition model not installed",
+      detail: !f.captions ? "Switched off" : voice.asr ? (onService ? "Voice service connected" : "Speech recognition model installed") : onService ? "The voice service isn't answering" : "Speech recognition model not installed",
     },
     {
       name: "Secret storage",

@@ -14,7 +14,7 @@ No public registration, no subscriptions, no billing, no public project access.
 
 ## Quick start
 
-See **[docs/SETUP.md](docs/SETUP.md)** (first setup), **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** (production) and **[docs/MAINTENANCE.md](docs/MAINTENANCE.md)** (looking after it). The Stage 14 audit with every test result is **[docs/STAGE14.md](docs/STAGE14.md)**. Short version:
+See **[docs/SETUP.md](docs/SETUP.md)** (first setup), **[docs/VERCEL.md](docs/VERCEL.md)** (go live on Vercel + Supabase), **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** (production) and **[docs/MAINTENANCE.md](docs/MAINTENANCE.md)** (looking after it). The Stage 14 audit with every test result is **[docs/STAGE14.md](docs/STAGE14.md)**. Short version:
 
 ```bash
 npm install

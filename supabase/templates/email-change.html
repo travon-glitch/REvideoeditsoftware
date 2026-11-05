@@ -1,0 +1,5 @@
+<!-- Supabase → Authentication → Emails → "Change email address". Subject: Confirm your new email address -->
+<h2>Confirm your new email address</h2>
+<p>Press the button to start using {{ .NewEmail }} for the company video studio.</p>
+<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email_change&amp;next=/account"
+      style="display:inline-block;padding:12px 20px;background:#1D4ED8;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:600">Confirm new email</a></p>

@@ -10,6 +10,7 @@ import { ORIENTATION_LABELS } from "@/lib/video/easy";
 import type { BatchVideo } from "@/lib/video/batch-store";
 import type { ListingAnalysis } from "@/lib/video/batch";
 import type { Aspect } from "@/lib/video/plan";
+import { zipStream, type ZipEntry } from "@/lib/zip";
 import { cn } from "@/lib/utils";
 
 interface Data {
@@ -25,6 +26,33 @@ export function BatchDashboard({ initial, canDownload, canEdit }: { initial: Dat
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [working, setWorking] = useState<string | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
+  const [zipping, setZipping] = useState(false);
+
+  /** Builds the ZIP in the browser from short-lived links, so videos never pass through the web server. */
+  const downloadAll = async () => {
+    setZipping(true); setNotice(null);
+    try {
+      const res = await fetch(`/api/batches/${data.batch.id}/zip?list=1`, { cache: "no-store" });
+      const list = (await res.json()) as { name?: string; files?: { name: string; url: string }[]; error?: string };
+      if (!res.ok || !list.files?.length) throw new Error(list.error ?? "No videos are finished yet.");
+      const files = list.files;
+      async function* entries(): AsyncGenerator<ZipEntry> {
+        for (const f of files) {
+          const r = await fetch(f.url);
+          if (!r.ok) throw new Error(`${f.name} couldn't be downloaded.`);
+          yield { name: f.name, data: new Uint8Array(await r.arrayBuffer()) };
+        }
+      }
+      const blob = await new Response(zipStream(entries())).blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = list.name ?? "videos.zip";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+    } catch (e) {
+      setNotice({ ok: false, text: e instanceof Error ? e.message : "The ZIP couldn't be made. Download the videos one by one." });
+    } finally { setZipping(false); }
+  };
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/batches/${data.batch.id}`).catch(() => null);
@@ -69,8 +97,10 @@ export function BatchDashboard({ initial, canDownload, canEdit }: { initial: Dat
           </div>
           <div className="flex flex-wrap gap-2">
             {canDownload ? (
-              <Button asChild size="lg" variant={done.length ? "default" : "outline"} className={cn(!done.length && "pointer-events-none opacity-50")}>
-                <a href={`/api/batches/${data.batch.id}/zip`} aria-disabled={!done.length}><FolderDown aria-hidden="true" />Download all{done.length ? ` (${done.length})` : ""} as ZIP</a>
+              <Button size="lg" variant={done.length ? "default" : "outline"} disabled={!done.length || zipping}
+                onClick={() => void downloadAll()}>
+                {zipping ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <FolderDown aria-hidden="true" />}
+                {zipping ? "Preparing ZIP…" : `Download all${done.length ? ` (${done.length})` : ""} as ZIP`}
               </Button>
             ) : null}
             {canEdit ? (

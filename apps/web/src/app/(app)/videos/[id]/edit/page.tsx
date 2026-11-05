@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/page-header";
 import { VideoEditor, type EditorRender } from "./video-editor";
 import { toEasyListing } from "@/lib/video/project-store";
 import { VOICE_LIST } from "@/lib/video/voice-store";
-import { voiceModelsAvailable } from "@lvs/voice";
+import { voiceEngine } from "@/lib/video/voice-engine";
 import { getStudioMove } from "@lvs/camera-presets";
 import { parseCamera } from "@/lib/storage-server";
 
@@ -81,7 +81,7 @@ export default async function EditVideoPage({ params, searchParams }: { params: 
           listing={listing ? toEasyListing(listing) : null}
           brand={{ company_name: ctx.brandKit?.company_name ?? null, outro_text: ctx.brandKit?.outro_text ?? null }}
           voices={VOICE_LIST}
-          voiceReady={voiceModelsAvailable()}
+          voiceReady={await voiceEngine().status()}
         />
       )}
     </div>

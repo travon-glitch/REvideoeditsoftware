@@ -1,6 +1,6 @@
 # Production deployment
 
-This guide is for putting Listing Video Studio into production for **one company**. It is a private
+This guide is for putting Listing Video Studio into production for **one company**. **Hosting on Vercel + Supabase? Follow `docs/VERCEL.md`**: it has the step-by-step version, with a one-file database setup (`supabase/setup.sql`) and a one-query first login (`supabase/first-login.sql`). It is a private
 application: no public sign-up, no public pages except sign-in, and every file is private.
 `docs/SETUP.md` has the first-time setup in more detail. This guide is the production version and
 the checklist.

@@ -1,4 +1,18 @@
+import { join } from "node:path";
 import type { NextConfig } from "next";
+
+/*
+ * On Vercel (VERCEL=1 during the build) narration and captions run on the voice service
+ * (LVS_VOICE_SERVICE_URL), so the native voice engine and its models are left out of the functions.
+ * They are never bundled in any case: the models (~190 MB) are downloaded separately.
+ */
+const onVercel = !!process.env.VERCEL;
+const traceExcludes = [
+  "../../packages/voice/models/**",
+  "../../packages/ai-motion/models/**",
+  "../../node_modules/onnxruntime-node/**",
+  ...(onVercel ? ["../../node_modules/sherpa-onnx-*/**", "../../node_modules/sherpa-onnx-node/**"] : []),
+];
 
 /* Static security headers. The Content-Security-Policy (with a per-request
    nonce) is set in src/middleware.ts. */
@@ -14,6 +28,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // the npm workspace root, so server functions include the shared packages (Vercel monorepo)
+  outputFileTracingRoot: join(__dirname, "..", ".."),
+  outputFileTracingExcludes: { "/**/*": traceExcludes },
   poweredByHeader: false,
   transpilePackages: ["@lvs/camera-presets", "@lvs/voice", "@lvs/render-worker"],
   // native add-ons load from node_modules at runtime (the on-server voice engine)
