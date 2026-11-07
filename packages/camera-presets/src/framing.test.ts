@@ -185,11 +185,11 @@ describe("gimbal feel", () => {
     expect(off.keyframes).toEqual(cameraKeyframes(base, 5, CANVAS["9:16"], PHOTOS.landscape).keyframes);
   });
 
-  it("floats gently, adds motion blur, and never crops the whole photo (every frame)", () => {
+  it("floats gently and never crops the whole photo (every frame)", () => {
     const base = applyMovePreset(fitSpec("contain"), "move_left");
     const plain = cameraKeyframes(base, 5, CANVAS["9:16"], PHOTOS.landscape);
     const r = cameraKeyframes({ ...base, gimbal: 0.9 }, 5, CANVAS["9:16"], PHOTOS.landscape);
-    expect(r.props.motionBlur).toBe(180);
+    expect(r.props.motionBlur).toBeUndefined(); // no automatic blur (render time)
     let maxDev = 0;
     for (const t of every30fps(5)) {
       const tr = transformAt(r.keyframes, t);

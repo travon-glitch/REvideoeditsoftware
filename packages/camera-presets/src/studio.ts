@@ -212,8 +212,8 @@ export interface CameraSpec {
   safeArea?: SafeArea | null;
   /**
    * Gimbal feel 0…1 (missing or 0 = locked-off, exactly as before): the move eases in and
-   * settles, drifts a touch forward, banks gently into sideways travel, floats slowly like a
-   * hand-carried gimbal, and gets film motion blur.
+   * settles, drifts a touch forward, banks gently into sideways travel, and floats slowly like a
+   * hand-carried gimbal.
    */
   gimbal?: number;
 }
@@ -752,9 +752,9 @@ export function cameraKeyframes(spec: CameraSpec, duration: number, canvas: Canv
   for (const name of ["rotation", "x", "y"] as const) {
     if (keyframes[name].every((x) => x.v === 0)) delete (keyframes as Partial<CameraChannels>)[name];
   }
-  // a camera that moves gets film motion blur (180° shutter) with the gimbal feel
-  const blur = Math.max(s.motionBlur, g > 0 ? 180 : 0);
-  const props = { fit: fr.fit, ...(blur > 0 ? { motionBlur: Math.round(blur), motionBlurSamples: 8 } : {}) };
+  // (the gimbal feel adds no motion blur: at the slow speed of a photo move it is barely visible, and it
+  //  multiplies render time — up to 3× on templates with a colour look. Set motionBlur to get it.)
+  const props = { fit: fr.fit, ...(s.motionBlur > 0 ? { motionBlur: Math.round(s.motionBlur), motionBlurSamples: 8 } : {}) };
   return {
     keyframes, props, mode: fr.mode, framing: fr,
     edgeGuard: fr.region ? 1 : r4(k), fitScale: fr.region ? r4(k) : 1, background: specBackground(s),

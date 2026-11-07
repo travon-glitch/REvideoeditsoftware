@@ -25,7 +25,7 @@ export function GimbalPicker({ spec, setSpec, id = "gimbal" }: {
       </div>
       <p className="text-[11px] text-muted-foreground">
         {g > 0
-          ? "Gimbal feel: eases in and settles, floats slightly, banks into turns, with film motion blur — like a camera operator, not a computer slide."
+          ? "Gimbal feel: eases in and settles, floats slightly and banks into turns — like a camera operator, not a computer slide."
           : "Steady: perfectly smooth, like a tripod or a camera slider."}
       </p>
     </div>
