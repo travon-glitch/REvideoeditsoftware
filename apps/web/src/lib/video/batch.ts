@@ -14,7 +14,7 @@
  * Shape is chosen per batch — vertical 1080×1920 by default.
  * Only facts from the listing record are used.
  */
-import { defaultSpec, type CameraSpec } from "@lvs/camera-presets";
+import { DEFAULT_GIMBAL, defaultSpec, type CameraSpec } from "@lvs/camera-presets";
 import {
   FIRST_SCENE, LAST_SCENE, MAX_SCENE_SECONDS, MIN_SCENE_SECONDS, planSchema,
   type Aspect, type EditPlan, type Scene, type TextOverlay, type Transition,
@@ -246,7 +246,8 @@ export function buildBatchPlan(input: BatchInput): EditPlan {
   const secs = lengths(chosen.length, Math.max(chosen.length * MIN_SCENE_SECONDS, r.seconds(chosen.length)));
   const scenes: Scene[] = chosen.map((p, i) => ({
     id: `s${i + 1}`, assetId: p.id, move: "still", duration: secs[i]!,
-    camera: p.camera ?? r.camera(i, v),
+    // generated moves are operated like a gimbal; a photo's own saved move is used as saved
+    camera: p.camera ?? { ...r.camera(i, v), gimbal: DEFAULT_GIMBAL },
   }));
   const l = input.listing;
   const texts = r.texts({

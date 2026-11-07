@@ -84,6 +84,7 @@ Create `THIRD_PARTY_NOTICES.md` (and an in-app "Open-source licences" page) cont
 
 | Component | Licence | How it is used | Verdict |
 |---|---|---|---|
+| Depth Anything V2 **Small** depth model (`depth_anything_v2_vits.onnx`, github.com/DepthAnything/Depth-Anything-V2; ONNX export github.com/fabio-sim/Depth-Anything-ONNX) | Apache-2.0 | Downloaded by `npm run fetch-model -w @lvs/ai-motion` (SHA-256 pinned), run **only on the AI worker server**; not committed, not sent to browsers. Used in preference to MiDaS. | Compatible. **Only the Small model is Apache-2.0** — the Base/Large/Giant V2 models are CC-BY-NC-4.0 (non-commercial) and must not be used. |
 | MiDaS v2.1 small depth model (`model-small.onnx`, Intel ISL — github.com/isl-org/MiDaS) | MIT | Downloaded by `npm run fetch-model -w @lvs/ai-motion` (SHA-256 pinned), run **only on the AI worker server**; not committed, not sent to browsers | Compatible. Keep the MIT notice with deployments. |
 | `onnxruntime-node` 1.20.1 (Microsoft) | MIT | Runs the depth model on the worker | Compatible. |
 | MuAPI request flow (`packages/ai-motion/src/providers/muapi.ts`) | MIT — adapted from Open-Generative-AI `src/lib/muapi.js` (upstream Anil-matcha/Open-Generative-AI, same code as the audited fork, MIT ≥ `1ff3667`) | Server-side provider adapter; only active when `MUAPI_API_KEY` is set | Compatible; attribution in the file header. **⚠ Legal review**: MuAPI's own terms of service and each video model's output licence must be accepted by the company before it is switched on. |

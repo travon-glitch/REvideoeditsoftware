@@ -9,7 +9,7 @@
  *  - every text overlay passes the fact checker, otherwise it is dropped and reported;
  *  - the result is validated by the editor's own plan schema.
  */
-import { defaultSpec, getStudioMove, INTENSITY_STRENGTH, type StudioMoveId } from "@lvs/camera-presets";
+import { DEFAULT_GIMBAL, defaultSpec, getStudioMove, INTENSITY_STRENGTH, type StudioMoveId } from "@lvs/camera-presets";
 import {
   FIRST_SCENE, LAST_SCENE, MAX_SCENE_SECONDS, MAX_SCENES, MAX_TEXTS, MIN_SCENE_SECONDS, planSchema,
   type EditPlan, type Scene, type TextOverlay,
@@ -87,7 +87,7 @@ export function compileStoryboard(input: {
     }
     const id = `s${i + 1}`;
     sceneIdOf.set(s.index, id);
-    return { id, assetId: byRef.get(s.ref)!.assetId, move: "still", duration: seconds, camera: defaultSpec(move, { strength: INTENSITY_STRENGTH[s.intensity] }) };
+    return { id, assetId: byRef.get(s.ref)!.assetId, move: "still", duration: seconds, camera: defaultSpec(move, { strength: INTENSITY_STRENGTH[s.intensity], gimbal: DEFAULT_GIMBAL }) };
   });
 
   // one transition for the whole video (the editor's model): the storyboard's most common choice

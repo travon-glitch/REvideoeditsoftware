@@ -2,7 +2,7 @@
 /* Easy editor: preview, photo order, style, music, text, camera movement, generate and download — nothing else. */
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Download, GripVertical, LoaderCircle, Plus, Trash2, Upload, Wand2, X } from "lucide-react";
-import { EASY_CAMERAS, easySpec, type EasyCameraId } from "@lvs/camera-presets";
+import { DEFAULT_GIMBAL, EASY_CAMERAS, easySpec, type EasyCameraId } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -51,7 +51,7 @@ export function EasyEditor(p: {
       return { ...next, music: { ...cur.music, ...next.music, assetId: cur.music.assetId, volume: cur.music.volume }, voiceover: cur.voiceover, captions: cur.captions, overlays: cur.overlays, logoAssetId: cur.logoAssetId, branding: cur.branding, look: cur.look };
     });
   };
-  const cameraForAll = (id: EasyCameraId) => update((cur) => ({ ...cur, scenes: cur.scenes.map((s) => (s.clipAssetId ? s : { ...s, camera: { ...easySpec(id, "normal"), fit: "contain" as const }, move: "still", position: undefined, segment: undefined })) }));
+  const cameraForAll = (id: EasyCameraId) => update((cur) => ({ ...cur, scenes: cur.scenes.map((s) => (s.clipAssetId ? s : { ...s, camera: { ...easySpec(id, "normal"), fit: "contain" as const, gimbal: DEFAULT_GIMBAL }, move: "still", position: undefined, segment: undefined })) }));
   const cameraOf = (s: EditPlan["scenes"][number]): string => {
     if (s.clipAssetId) return "ai";
     if (!s.camera) return s.move === "still" ? "still" : "simple";
@@ -97,7 +97,7 @@ export function EasyEditor(p: {
                   <label className="sr-only" htmlFor={`cam-${s.id}`}>Camera movement for photo {i + 1}</label>
                   <NativeSelect id={`cam-${s.id}`} className="h-9 text-xs" value={cameraOf(s)} onChange={(e) => {
                     const v = e.target.value;
-                    update((cur) => ({ ...cur, scenes: cur.scenes.map((x) => (x.id !== s.id ? x : v === "still" ? { ...x, move: "still", camera: undefined, position: undefined, segment: undefined } : { ...x, move: "still", camera: { ...easySpec(v as EasyCameraId, "normal"), fit: "contain" as const }, position: undefined, segment: undefined })) }));
+                    update((cur) => ({ ...cur, scenes: cur.scenes.map((x) => (x.id !== s.id ? x : v === "still" ? { ...x, move: "still", camera: undefined, position: undefined, segment: undefined } : { ...x, move: "still", camera: { ...easySpec(v as EasyCameraId, "normal"), fit: "contain" as const, gimbal: DEFAULT_GIMBAL }, position: undefined, segment: undefined })) }));
                   }}>
                     {cameraOf(s) === "ai" ? <option value="ai">AI camera clip</option> : null}
                     {cameraOf(s) === "custom" || cameraOf(s) === "simple" ? <option value={cameraOf(s)}>Custom move</option> : null}

@@ -16,7 +16,7 @@
  * flagged as warnings when the listing doesn't back them up.
  */
 import { z } from "zod";
-import { INTENSITY_STRENGTH, defaultSpec, getStudioMove, type CameraSpec, type StudioMoveId } from "@lvs/camera-presets";
+import { DEFAULT_GIMBAL, INTENSITY_STRENGTH, defaultSpec, getStudioMove, type CameraSpec, type StudioMoveId } from "@lvs/camera-presets";
 import {
   AGENT_LAYOUTS, ASPECTS, BRAND_FONTS, FIRST_SCENE, INTRO_STYLES, LAST_SCENE, MAX_SCENES, OUTRO_STYLES, PHOTO_FILTERS, STILL, TEXT_ANIMS,
   TRANSITIONS, planSchema,
@@ -376,7 +376,7 @@ export function buildTemplatePlan(input: {
     const ok = getStudioMove(move) && !getStudioMove(move)!.requiresAI;
     return {
       id: `s${i + 1}`, assetId: p.id, move: STILL, duration: lengths[i] ?? spec.sceneSeconds,
-      camera: p.camera ?? defaultSpec(ok ? move : "push_in", { strength, easing: spec.intensity === "dramatic" ? "ease-in-out" : "ease-in-out" }),
+      camera: p.camera ?? defaultSpec(ok ? move : "push_in", { strength, easing: "ease-in-out", gimbal: DEFAULT_GIMBAL }),
     };
   });
   // if photos ran out, the last scene keeps the end length

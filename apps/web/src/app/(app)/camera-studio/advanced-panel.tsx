@@ -6,10 +6,11 @@ import {
   PHOTO_FITS, PHOTO_FIT_LABELS, defaultSpec, presetSpec, specFit, type CameraKey, type CameraSpec, type CameraView, type Easing, type StandardQuality, type StudioMove,
 } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
+import { GimbalPicker } from "./gimbal-picker";
 import { cn } from "@/lib/utils";
 
 /** A new move keeps the chosen framing. */
-const keepFraming = (from: CameraSpec, to: CameraSpec): CameraSpec => ({ ...to, fit: from.fit, background: from.background ?? null, safeArea: from.safeArea ?? null });
+const keepFraming = (from: CameraSpec, to: CameraSpec): CameraSpec => ({ ...to, fit: from.fit, background: from.background ?? null, safeArea: from.safeArea ?? null, gimbal: from.gimbal ?? 0 });
 
 type SetSpec = (fn: (s: CameraSpec) => CameraSpec, mergeKey?: string) => void;
 
@@ -75,6 +76,7 @@ export function AdvancedPanel({
         </select>
         <p className="text-xs text-muted-foreground">{PHOTO_FIT_LABELS[specFit(spec)].hint} Backgrounds and Smart Fit&apos;s area are set in Move camera.</p>
       </div>
+      <GimbalPicker spec={spec} setSpec={setSpec} id="adv-gimbal" />
       <div role="tablist" aria-label="Advanced camera" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {TABS.map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}

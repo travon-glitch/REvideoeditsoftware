@@ -113,7 +113,7 @@ describe("generative clips are reviewed against the original photo", () => {
   }, 60_000);
 });
 
-describe.skipIf(!depthModelAvailable())("AI depth clip (real MiDaS model)", () => {
+describe.skipIf(!depthModelAvailable())("AI depth clip (real depth model)", () => {
   it("makes a real 1080p orbit clip from an exterior photo", async () => {
     const { deps, stored, result } = fakeDeps();
     const r = await processGenerationJob(job(), deps);

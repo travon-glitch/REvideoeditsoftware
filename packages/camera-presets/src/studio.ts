@@ -210,6 +210,61 @@ export interface CameraSpec {
   background?: FrameBackground | null;
   /** Smart Fit: the part of the photo to keep in view (fractions of the photo, 0…1). */
   safeArea?: SafeArea | null;
+  /**
+   * Gimbal feel 0…1 (missing or 0 = locked-off, exactly as before): the move eases in and
+   * settles, drifts a touch forward, banks gently into sideways travel, floats slowly like a
+   * hand-carried gimbal, and gets film motion blur.
+   */
+  gimbal?: number;
+}
+
+/* ── Gimbal feel ───────────────────────────────────────────────────────── */
+
+export const GIMBAL_LEVELS = [
+  { id: "off", label: "Off", value: 0, hint: "Perfectly steady, like a tripod or slider." },
+  { id: "subtle", label: "Subtle", value: 0.35, hint: "A barely-there float." },
+  { id: "natural", label: "Natural", value: 0.6, hint: "Like an operator walking with a gimbal." },
+  { id: "strong", label: "Strong", value: 0.9, hint: "More float and banking, still smooth." },
+] as const;
+/** New camera moves start with this (Natural). */
+export const DEFAULT_GIMBAL = 0.6;
+
+/**
+ * The slow float of a hand-carried gimbal at time t (seconds): a few px of drift and a
+ * fraction of a degree of roll, made of slow, unrelated sine waves (0.13–0.5 Hz) so it
+ * never looks like a loop. Deterministic: the preview and every export float identically.
+ */
+export function gimbalFloat(g: number, t: number, canvas: Canvas): { x: number; y: number; rotation: number } {
+  if (!(g > 0)) return { x: 0, y: 0, rotation: 0 };
+  const a = Math.min(canvas.width, canvas.height) * 0.0065 * g, tau = Math.PI * 2;
+  return {
+    x: a * (0.65 * Math.sin(tau * 0.23 * t + 0.6) + 0.35 * Math.sin(tau * 0.47 * t + 2.1)),
+    y: a * 0.8 * (0.6 * Math.sin(tau * 0.19 * t + 1.7) + 0.4 * Math.sin(tau * 0.41 * t + 0.3)),
+    rotation: 0.22 * g * Math.sin(tau * 0.13 * t + 0.9),
+  };
+}
+
+/** The operator's touch on the path: a gentle forward drift and a bank into sideways travel. */
+function gimbalPath(path: CameraKey[], g: number): CameraKey[] {
+  if (!(g > 0) || path.length < 2) return path;
+  const dx = path[path.length - 1]!.x - path[0]!.x;
+  const bank = Math.abs(dx) > 0.005 ? Math.sign(dx) * 0.6 * g : 0;
+  return path.map((k, i) => (i === 0 ? k : { ...k, zoom: k.zoom * (1 + 0.025 * g), rotation: k.rotation + bank }));
+}
+
+/** Adds the float to the channels as keys every 1/15 s (linear between them, so the eased move is kept). */
+function withFloat(ch: CameraChannels, duration: number, g: number, canvas: Canvas): CameraChannels {
+  if (!(g > 0)) return ch;
+  const n = Math.max(2, Math.ceil(duration * 15));
+  const out: CameraChannels = { x: [], y: [], scale: [], rotation: [] };
+  for (let i = 0; i <= n; i++) {
+    const t = r4((duration * i) / n), f = gimbalFloat(g, t, canvas), e = i ? { ease: "linear" as const } : {};
+    out.x.push({ t, v: r4(evalChannel(ch.x, t, 0) + f.x), ...e });
+    out.y.push({ t, v: r4(evalChannel(ch.y, t, 0) + f.y), ...e });
+    out.rotation.push({ t, v: r4(evalChannel(ch.rotation, t, 0) + f.rotation), ...e });
+    out.scale.push({ t, v: r4(evalChannel(ch.scale, t, 1)), ...e });
+  }
+  return out;
 }
 
 /* ── Photo framing ─────────────────────────────────────────────────────── */
@@ -438,6 +493,7 @@ export function normalizeSpec(s: CameraSpec): CameraSpec {
       color2: HEX.test(s.background.color2) ? s.background.color2 : DEFAULT_BACKGROUND.color2,
     } } : {}),
     ...(s.safeArea ? { safeArea: normalizeSafeArea(s.safeArea) } : {}),
+    ...(s.gimbal != null ? { gimbal: Math.round(clamp(Number(s.gimbal) || 0, 0, 1) * 100) / 100 } : {}),
   };
 }
 
@@ -666,12 +722,14 @@ function toChannels(path: CameraKey[], canvas: Canvas, k: number, fr: Pick<Frami
 export function cameraKeyframes(spec: CameraSpec, duration: number, canvas: Canvas, photo?: { width: number; height: number } | null): CameraRender {
   if (!(duration > 0)) throw new Error("Duration must be greater than 0");
   const s = normalizeSpec(spec);
-  const path = cameraPath(s, duration);
+  const g = s.gimbal ?? 0;
+  const path = gimbalPath(cameraPath(s, duration), g);
   const fr = photoFraming(s, canvas, photo);
-  const samples = 48;
+  const samples = g > 0 ? 96 : 48;
   const ok = (tr: Transform) => (fr.region ? regionInFrame(tr, canvas, fr.region) : coversFrame(tr, canvas, photo));
+  const channels = (k: number) => withFloat(toChannels(path, canvas, k, fr), duration, g, canvas);
   const fits = (k: number) => {
-    const ch = toChannels(path, canvas, k, fr);
+    const ch = channels(k);
     for (let i = 0; i <= samples; i++) if (!ok(transformAt(ch, (duration * i) / samples))) return false;
     return true;
   };
@@ -689,12 +747,14 @@ export function cameraKeyframes(spec: CameraSpec, duration: number, canvas: Canv
       k = lo * 0.999;
     }
   }
-  const keyframes = toChannels(path, canvas, k, fr);
+  const keyframes = channels(k);
   // drop channels that never change (smaller documents)
   for (const name of ["rotation", "x", "y"] as const) {
     if (keyframes[name].every((x) => x.v === 0)) delete (keyframes as Partial<CameraChannels>)[name];
   }
-  const props = { fit: fr.fit, ...(s.motionBlur > 0 ? { motionBlur: Math.round(s.motionBlur), motionBlurSamples: 8 } : {}) };
+  // a camera that moves gets film motion blur (180° shutter) with the gimbal feel
+  const blur = Math.max(s.motionBlur, g > 0 ? 180 : 0);
+  const props = { fit: fr.fit, ...(blur > 0 ? { motionBlur: Math.round(blur), motionBlurSamples: 8 } : {}) };
   return {
     keyframes, props, mode: fr.mode, framing: fr,
     edgeGuard: fr.region ? 1 : r4(k), fitScale: fr.region ? r4(k) : 1, background: specBackground(s),
@@ -755,12 +815,12 @@ export function safeAreaFromPixels(gray: ArrayLike<number>, w: number, h: number
 export function describeSpec(spec: CameraSpec, duration?: number): string {
   if (hasManual(spec)) {
     const parts = MANUAL_AXES.filter((a) => spec.manual && spec.manual[a] !== 0).map((a) => `${MANUAL_LABELS[a].label} ${spec.manual![a] > 0 ? "+" : ""}${spec.manual![a]}`);
-    return ["Custom movement", duration ? `${duration} s` : null, parts.join(", ") || "custom start frame", spec.fit ? PHOTO_FIT_LABELS[specFit(spec)].label : null].filter(Boolean).join(" · ");
+    return ["Custom movement", duration ? `${duration} s` : null, parts.join(", ") || "custom start frame", spec.fit ? PHOTO_FIT_LABELS[specFit(spec)].label : null, spec.gimbal ? "gimbal feel" : null].filter(Boolean).join(" · ");
   }
   const m = getStudioMove(spec.move);
   const feel = spec.strength < 0.4 ? "gentle" : spec.strength < 0.75 ? "normal" : "dramatic";
   return [m?.name ?? spec.move, duration ? `${duration} s` : null, feel, spec.lens ? `${spec.lens}mm-style` : null,
-    spec.keyframes ? "custom keyframes" : null].filter(Boolean).join(" · ");
+    spec.keyframes ? "custom keyframes" : null, spec.gimbal ? "gimbal feel" : null].filter(Boolean).join(" · ");
 }
 
 /* ── AI depth method: camera poses ─────────────────────────────────────── */
@@ -773,6 +833,19 @@ export function describeSpec(spec: CameraSpec, duration?: number): string {
 export interface DepthPose { tx: number; ty: number; tz: number; yaw: number; pitch: number; roll: number; fovDeg: number; pivot: { x: number; y: number } }
 
 export function depthPose(spec: CameraSpec, u: number): DepthPose {
+  const pose = depthPoseBase(spec, u);
+  const g = spec.gimbal ?? 0;
+  if (g > 0) {
+    // the same slow, hand-carried float as the standard method (a little travel and roll)
+    const tau = Math.PI * 2;
+    pose.tx += 0.004 * g * Math.sin(tau * 1.1 * u + 0.6);
+    pose.ty += 0.003 * g * Math.sin(tau * 0.9 * u + 1.7);
+    pose.roll += 0.22 * g * Math.sin(tau * 0.7 * u + 0.9);
+  }
+  return pose;
+}
+
+function depthPoseBase(spec: CameraSpec, u: number): DepthPose {
   const s = normalizeSpec(spec);
   const lens = s.lens ? LENS_FEEL[s.lens] : LENS_FEEL[35];
   const a = Math.min(0.45, s.distance * (0.5 + s.strength) * lens.motion * Math.min(1, s.speed));

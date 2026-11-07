@@ -15,6 +15,7 @@ import {
 } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { PhotoLayer } from "@/components/video/photo-layer";
+import { GimbalPicker } from "./gimbal-picker";
 import { CANVAS_1080, type Aspect } from "@/lib/video/plan";
 import { analyzeSafeArea } from "@/lib/video/smart-fit";
 import { cn } from "@/lib/utils";
@@ -187,6 +188,8 @@ export function MovementPanel({
           ))}
         </div>
       </section>
+
+      <GimbalPicker spec={spec} setSpec={setSpec} id="move-gimbal" />
 
       {/* 4. Frame editor */}
       <section className="flex flex-col gap-3" aria-labelledby="frame-heading">

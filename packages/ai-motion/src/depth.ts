@@ -1,9 +1,12 @@
 /// <reference path="./onnxruntime.d.ts" />
 /*
- * Depth estimation with MiDaS v2.1 small (Intel ISL, MIT licence), run locally
- * with ONNX Runtime. Nothing leaves the server.
+ * Depth estimation, run locally with ONNX Runtime. Nothing leaves the server.
+ *  - Depth Anything V2 Small (Apache-2.0) — preferred: sharp edges at door frames,
+ *    windows and furniture, so straight lines stay straight when the camera moves.
+ *  - MiDaS v2.1 small (MIT) — the older, smaller model; used when V2 isn't installed.
+ * `npm run fetch-model -w @lvs/ai-motion` downloads both (checksummed).
  *
- * Output: relative "nearness" per pixel, 0 = far … 1 = near (MiDaS predicts
+ * Output: relative "nearness" per pixel, 0 = far … 1 = near (both predict
  * relative inverse depth; it is normalised with robust percentiles).
  */
 import { existsSync } from "node:fs";
@@ -11,13 +14,28 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Rgb } from "./media.ts";
 
-export const DEPTH_MODEL = {
-  name: "MiDaS v2.1 small",
-  license: "MIT",
-  source: "https://github.com/isl-org/MiDaS",
-  file: "midas-v21-small-256.onnx",
-  input: 256,
-} as const;
+export interface DepthModelSpec { id: "depth-anything-v2-small" | "midas-v21-small"; name: string; license: string; source: string; file: string; input: number }
+export const DEPTH_MODELS: readonly DepthModelSpec[] = [
+  { id: "depth-anything-v2-small", name: "Depth Anything V2 Small", license: "Apache-2.0", source: "https://github.com/DepthAnything/Depth-Anything-V2", file: "depth-anything-v2-small-518.onnx", input: 518 },
+  { id: "midas-v21-small", name: "MiDaS v2.1 small", license: "MIT", source: "https://github.com/isl-org/MiDaS", file: "midas-v21-small-256.onnx", input: 256 },
+];
+const modelsDir = () => join(dirname(fileURLToPath(import.meta.url)), "..", "models");
+
+/** The model in use: LVS_DEPTH_MODEL (a file path) if set, else the best one installed. */
+export function activeDepthModel(): DepthModelSpec & { path: string } {
+  const forced = process.env.LVS_DEPTH_MODEL;
+  if (forced) {
+    const spec = DEPTH_MODELS.find((m) => forced.endsWith(m.file)) ?? DEPTH_MODELS[1]!;
+    return { ...spec, path: forced };
+  }
+  for (const m of DEPTH_MODELS) {
+    const path = join(modelsDir(), m.file);
+    if (existsSync(path)) return { ...m, path };
+  }
+  return { ...DEPTH_MODELS[0]!, path: join(modelsDir(), DEPTH_MODELS[0]!.file) };
+}
+/** @deprecated use activeDepthModel() — kept for callers that only read the name. */
+export const DEPTH_MODEL = DEPTH_MODELS[1]!;
 
 export interface DepthMap { width: number; height: number; data: Float32Array }
 
@@ -25,7 +43,7 @@ type Session = { inputNames: readonly string[]; outputNames: readonly string[]; 
 let session: Promise<Session> | null = null;
 
 export function depthModelPath(): string {
-  return process.env.LVS_DEPTH_MODEL ?? join(dirname(fileURLToPath(import.meta.url)), "..", "models", DEPTH_MODEL.file);
+  return activeDepthModel().path;
 }
 export function depthModelAvailable(): boolean { return existsSync(depthModelPath()); }
 
@@ -42,10 +60,10 @@ async function getSession(): Promise<Session> {
   return session;
 }
 
-/** Runs the network on a 256×256 RGB image and returns the raw 256×256 prediction. */
+/** Runs the network on an N×N RGB image (the model's input size) and returns the raw N×N prediction. */
 async function predict(small: Rgb): Promise<Float32Array> {
-  const N = DEPTH_MODEL.input;
-  if (small.width !== N || small.height !== N) throw new Error("Depth input must be 256×256");
+  const N = activeDepthModel().input;
+  if (small.width !== N || small.height !== N) throw new Error(`Depth input must be ${N}×${N}`);
   const mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225];
   const input = new Float32Array(3 * N * N);
   for (let i = 0; i < N * N; i++) {
@@ -82,16 +100,16 @@ function percentile(values: Float32Array, p: number): number {
 }
 
 /**
- * Depth for a photo: `small` is the whole photo at 256×256 (network input), the
+ * Depth for a photo: `small` is the whole photo at the model's input size (N×N), the
  * map is returned at width×height and cover-cropped the same way as the frame
  * (`crop` = the visible part of the squashed image, in 0…1 units).
  */
 export async function estimateDepth(small: Rgb, width: number, height: number, crop = { x: 0, y: 0, w: 1, h: 1 }): Promise<DepthMap> {
-  const N = DEPTH_MODEL.input;
+  const N = activeDepthModel().input;
   const raw = await predict(small);
-  // crop the 256 map to the visible region, then upsample
+  // crop the N×N map to the visible region, then upsample (keeping the model's detail)
   const cx0 = crop.x * N, cy0 = crop.y * N, cw = crop.w * N, ch = crop.h * N;
-  const M = 256;
+  const M = N;
   const cropped = new Float32Array(M * M);
   for (let y = 0; y < M; y++) {
     const sy = Math.min(N - 1, cy0 + (y / (M - 1)) * (ch - 1));

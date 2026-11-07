@@ -79,7 +79,7 @@ jobs:
           pids=""
           node packages/render-worker/src/worker.ts & pids="$pids $!"
           if [ "${{ steps.check.outputs.clips }}" = "true" ]; then
-            [ -f packages/ai-motion/models/midas-v21-small-256.onnx ] || node packages/ai-motion/scripts/fetch-model.mjs
+            [ -f packages/ai-motion/models/depth-anything-v2-small-518.onnx ] || node packages/ai-motion/scripts/fetch-model.mjs
             node packages/ai-motion/src/worker.ts & pids="$pids $!"
           fi
           status=0

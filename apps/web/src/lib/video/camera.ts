@@ -34,6 +34,7 @@ export const cameraSpecSchema = z.object({
     color2: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   }).nullable().optional(),
   safeArea: z.object({ x0: num(0, 1), y0: num(0, 1), x1: num(0, 1), y1: num(0, 1) }).nullable().optional(),
+  gimbal: num(0, 1).optional(),
 }).transform((s) => normalizeSpec(s as CameraSpec));
 
 export const LENS_OPTIONS = LENS_STYLES;

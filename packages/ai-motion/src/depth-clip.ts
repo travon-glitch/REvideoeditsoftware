@@ -1,7 +1,7 @@
 /* One call: photo file + camera spec → MP4 clip made with the AI depth method, plus its accuracy review. */
 import { statSync } from "node:fs";
 import { normalizeSpec, type CameraSpec } from "@lvs/camera-presets";
-import { DEPTH_MODEL, estimateDepth } from "./depth.ts";
+import { activeDepthModel, estimateDepth } from "./depth.ts";
 import { DepthScene, OVERSCAN, fitGuard, renderDepthClip } from "./depth-render.ts";
 import { Mp4Writer, decodeCover, decodeStretch, imageSize, probeVideo, type Rgb } from "./media.ts";
 import { reviewClip, type AccuracyReview } from "./accuracy.ts";
@@ -46,7 +46,8 @@ export async function makeDepthClip(input: {
   const sw = even(input.width * OVERSCAN), sh = even(input.height * OVERSCAN);
   const source = decodeCover(input.photo, sw, sh);
   const size = imageSize(input.photo);
-  const depth = await estimateDepth(decodeStretch(input.photo, DEPTH_MODEL.input, DEPTH_MODEL.input), sw, sh, coverCrop(size, sw, sh));
+  const model = activeDepthModel();
+  const depth = await estimateDepth(decodeStretch(input.photo, model.input, model.input), sw, sh, coverCrop(size, sw, sh));
   const scene = new DepthScene(source, depth, { width: input.width, height: input.height }, spec);
   fitGuard(scene, spec, spec.speed);
   const writer = new Mp4Writer(input.out, input.width, input.height, 30);
@@ -67,6 +68,6 @@ export async function makeDepthClip(input: {
   input.onProgress?.(1);
   return {
     file: input.out, width: info.width, height: info.height, durationSeconds: info.durationSeconds,
-    sizeBytes: statSync(input.out).size, review, model: `${DEPTH_MODEL.name} (${DEPTH_MODEL.license})`,
+    sizeBytes: statSync(input.out).size, review, model: `${model.name} (${model.license})`,
   };
 }

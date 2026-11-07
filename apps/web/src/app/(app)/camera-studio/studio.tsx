@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   AI_METHOD_LABELS, EASY_CAMERAS, EASY_DURATIONS, INTENSITIES, LENS_FEEL, STANDARD_QUALITY_LABELS, cameraKeyframes, describeSpec,
-  easySpec, getStudioMove, hasManual, transformAt, type CameraSpec, type CameraView, type EasyCameraId, type Intensity,
+  DEFAULT_GIMBAL, easySpec, getStudioMove, hasManual, transformAt, type CameraSpec, type CameraView, type EasyCameraId, type Intensity,
 } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -25,6 +25,7 @@ import { CameraPreview, MiniCameraPreview } from "./camera-preview";
 import { AdvancedPanel, QualityBadge } from "./advanced-panel";
 import { ClipsPanel, type Activity } from "./clips-panel";
 import { MovementPanel } from "./movement-panel";
+import { GimbalPicker } from "./gimbal-picker";
 
 export interface StudioPhoto { id: string; url: string | null; thumb: string | null; file_name: string; width: number | null; height: number | null; camera: CameraSpec | null }
 export interface StudioProps {
@@ -54,7 +55,7 @@ export function CameraStudio(p: StudioProps) {
   const [intensity, setIntensity] = useState<Intensity>("normal");
   const history = useHistory<Shot>({
     // new moves start with the whole photo in view (Show Entire Photo)
-    spec: p.scene?.camera ?? photo?.camera ?? { ...easySpec("closer", "normal"), fit: "contain" },
+    spec: p.scene?.camera ?? photo?.camera ?? { ...easySpec("closer", "normal"), fit: "contain", gimbal: DEFAULT_GIMBAL },
     duration: p.scene?.duration ? Math.min(10, Math.max(2, p.scene.duration)) : 5,
     aspect: p.scene?.aspect ?? "16:9",
   });
@@ -68,7 +69,7 @@ export function CameraStudio(p: StudioProps) {
 
   const setSpec = useCallback((fn: (s: CameraSpec) => CameraSpec, key?: string) => history.set((h) => ({ ...h, spec: fn(h.spec) }), key), [history]);
   // a new move keeps the chosen framing (fit, background, Smart Fit area)
-  const keepFraming = (from: CameraSpec, to: CameraSpec): CameraSpec => ({ ...to, fit: from.fit ?? "cover", background: from.background ?? null, safeArea: from.safeArea ?? null });
+  const keepFraming = (from: CameraSpec, to: CameraSpec): CameraSpec => ({ ...to, fit: from.fit ?? "cover", background: from.background ?? null, safeArea: from.safeArea ?? null, gimbal: from.gimbal ?? 0 });
   const pickEasy = (id: EasyCameraId, level = intensity) => { setEasyId(id); setIntensity(level); history.set((h) => ({ ...h, spec: keepFraming(h.spec, easySpec(id, level)) })); };
   const choosePhoto = (id: string) => {
     setPhotoId(id);
@@ -352,6 +353,7 @@ export function CameraStudio(p: StudioProps) {
                       ))}
                     </div>
                   </div>
+                  <GimbalPicker spec={shot.spec} setSpec={setSpec} id="easy-gimbal" />
                   <div className="flex flex-col gap-2">
                     <span id="duration" className="text-base font-semibold">Duration</span>
                     <div role="radiogroup" aria-labelledby="duration" className="grid grid-cols-3 gap-2">

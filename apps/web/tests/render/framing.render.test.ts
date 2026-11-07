@@ -148,6 +148,8 @@ describe.skipIf(!hasTools)("Move camera framing: preview = export", () => {
     { name: "fit-16x9-move-left", aspect: "16:9", spec: applyMovePreset(contain(), "move_left"), whole: true },
     { name: "fit-9x16-gradient", aspect: "9:16", spec: applyMovePreset(contain({ background: { kind: "gradient", color: "#1E3A8A", color2: "#F59E0B" } }), "move_up"), whole: true },
     { name: "fill-9x16-move-left", aspect: "9:16", spec: applyMovePreset(defaultSpec("push_in", { fit: "cover" }), "move_left"), whole: false },
+    { name: "fit-9x16-gimbal", aspect: "9:16", spec: { ...applyMovePreset(contain(), "move_right"), gimbal: 0.9 }, whole: true },
+    { name: "fill-16x9-gimbal", aspect: "16:9", spec: { ...applyMovePreset(defaultSpec("push_in", { fit: "cover" }), "move_right"), gimbal: 0.9 }, whole: false },
   ];
 
   for (const c of cases) {

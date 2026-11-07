@@ -175,3 +175,54 @@ describe("start and end frames", () => {
     expect(manualFrames(spec).start.zoom).toBeCloseTo(1.2, 2);
   });
 });
+
+describe("gimbal feel", () => {
+  const every30fps = (duration: number) => Array.from({ length: Math.round(duration * 30) + 1 }, (_, i) => i / 30);
+
+  it("off (or missing) renders exactly as before", () => {
+    const base = applyMovePreset(fitSpec("contain"), "move_left");
+    const off = cameraKeyframes({ ...base, gimbal: 0 }, 5, CANVAS["9:16"], PHOTOS.landscape);
+    expect(off.keyframes).toEqual(cameraKeyframes(base, 5, CANVAS["9:16"], PHOTOS.landscape).keyframes);
+  });
+
+  it("floats gently, adds motion blur, and never crops the whole photo (every frame)", () => {
+    const base = applyMovePreset(fitSpec("contain"), "move_left");
+    const plain = cameraKeyframes(base, 5, CANVAS["9:16"], PHOTOS.landscape);
+    const r = cameraKeyframes({ ...base, gimbal: 0.9 }, 5, CANVAS["9:16"], PHOTOS.landscape);
+    expect(r.props.motionBlur).toBe(180);
+    let maxDev = 0;
+    for (const t of every30fps(5)) {
+      const tr = transformAt(r.keyframes, t);
+      expect(inside(photoCorners(tr, CANVAS["9:16"], PHOTOS.landscape, "contain"), CANVAS["9:16"])).toBe(true);
+      maxDev = Math.max(maxDev, Math.abs(tr.y - transformAt(plain.keyframes, t).y));
+    }
+    expect(maxDev).toBeGreaterThan(1); // it really floats …
+    expect(maxDev).toBeLessThan(12); // … by a few px, not a shake
+  });
+
+  it("Fill Screen with a gimbal still fills the frame at every frame, for every preset", () => {
+    for (const p of MOVE_PRESETS) {
+      const spec = { ...applyMovePreset(fitSpec("cover"), p.id), gimbal: 0.9 };
+      for (const [canvas, photo] of [[CANVAS["9:16"], PHOTOS.landscape], [CANVAS["16:9"], PHOTOS.portrait]] as const) {
+        const r = cameraKeyframes(spec, 5, canvas, photo);
+        for (const t of every30fps(5)) {
+          const tr = transformAt(r.keyframes, t);
+          const f = Math.max(canvas.width / photo.width, canvas.height / photo.height) * tr.scale;
+          const hw = (photo.width * f) / 2, hh = (photo.height * f) / 2, th = (-tr.rotation * Math.PI) / 180;
+          for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+            const dx = (cx * canvas.width) / 2 - tr.x, dy = (cy * canvas.height) / 2 - tr.y;
+            expect(Math.abs(dx * Math.cos(th) - dy * Math.sin(th))).toBeLessThanOrEqual(hw + 1);
+            expect(Math.abs(dx * Math.sin(th) + dy * Math.cos(th))).toBeLessThanOrEqual(hh + 1);
+          }
+        }
+      }
+    }
+  });
+
+  it("banks into sideways travel and eases (slow at the ends, faster in the middle)", () => {
+    const r = cameraKeyframes({ ...applyMovePreset(fitSpec("cover"), "move_right"), gimbal: 0.6 }, 6, CANVAS["16:9"], PHOTOS.landscape);
+    const x = (t: number) => transformAt(r.keyframes, t).x;
+    expect(Math.abs(transformAt(r.keyframes, 6).rotation)).toBeGreaterThan(0.2);
+    expect(Math.abs(x(3.2) - x(2.8))).toBeGreaterThan(Math.abs(x(0.4) - x(0)) * 1.5);
+  });
+});
