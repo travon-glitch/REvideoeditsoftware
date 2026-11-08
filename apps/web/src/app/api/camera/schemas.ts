@@ -17,3 +17,11 @@ export const applySchema = z.object({
 });
 export const photoCameraSchema = z.object({ camera: cameraSpecSchema.nullable() });
 export const reviewSchema = z.object({ decision: z.enum(["approved", "problem"]), note: z.string().trim().max(500).optional() });
+export const interpretSchema = z.object({
+  assetId: z.string().uuid(),
+  prompt: z.string().trim().min(3).max(1000),
+  aspect: z.enum(ASPECTS),
+  duration: z.number().min(2).max(10),
+  preserveEntireImage: z.boolean(),
+  current: cameraSpecSchema.nullable(),
+});

@@ -2,7 +2,7 @@
 /* Inspector panels of the Advanced editor: scene, text, overlay, narration (AI voice), captions and music. */
 import { useState } from "react";
 import Link from "next/link";
-import { Clapperboard, Diamond, LoaderCircle, Mic, Play, Plus, Trash2, Upload, Wand2 } from "lucide-react";
+import { Sparkles, Clapperboard, Diamond, LoaderCircle, Mic, Play, Plus, Trash2, Upload, Wand2 } from "lucide-react";
 import { CAMERA_MOVES, STILL_NAME, getStudioMove } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,6 +136,7 @@ export function SceneInspector({ plan, id, update, projectId, thumb, aiClips, on
         <Button type="button" size="sm" variant="outline" onClick={onSplit}>Split at playhead</Button>
         <Button type="button" size="sm" variant="outline" onClick={onDuplicate}>Duplicate</Button>
         <Button type="button" size="sm" variant="outline" asChild><Link href={`/camera-studio?project=${projectId}&scene=${s.id}`}><Clapperboard aria-hidden="true" />Camera Studio</Link></Button>
+        <Button type="button" size="sm" variant="outline" asChild><Link href={`/camera-studio?project=${projectId}&scene=${s.id}&mode=ai`}><Sparkles aria-hidden="true" />AI Camera Control</Link></Button>
         <Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={plan.scenes.length <= 1} onClick={onDelete}><Trash2 aria-hidden="true" />Delete</Button>
       </div>
     </div>

@@ -1,7 +1,8 @@
 "use client";
 /* Easy editor: preview, photo order, style, music, text, camera movement, generate and download — nothing else. */
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Download, GripVertical, LoaderCircle, Plus, Trash2, Upload, Wand2, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, Download, GripVertical, LoaderCircle, Plus, Sparkles, Trash2, Upload, Wand2, X } from "lucide-react";
 import { DEFAULT_GIMBAL, EASY_CAMERAS, easySpec, type EasyCameraId } from "@lvs/camera-presets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,6 +105,9 @@ export function EasyEditor(p: {
                     <option value="still">Hold still</option>
                     {EASY_CAMERAS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </NativeSelect>
+                  <Link href={`/camera-studio?project=${p.projectId}&scene=${s.id}&mode=ai`} className="flex min-h-8 items-center justify-center gap-1 rounded-md text-xs font-semibold text-primary hover:bg-primary/5">
+                    <Sparkles className="size-3.5" aria-hidden="true" />AI Camera Control
+                  </Link>
                   <div className="flex justify-between">
                     <Button type="button" size="icon" variant="ghost" className="h-7 w-7" aria-label={`Move photo ${i + 1} earlier`} disabled={i === 0} onClick={() => update((cur) => ({ ...cur, scenes: moveItem(cur.scenes, i, i - 1) }))}><ArrowLeft aria-hidden="true" /></Button>
                     <span className="text-xs text-muted-foreground">{s.duration}s</span>

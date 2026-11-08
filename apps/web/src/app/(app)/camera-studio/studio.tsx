@@ -26,6 +26,7 @@ import { AdvancedPanel, QualityBadge } from "./advanced-panel";
 import { ClipsPanel, type Activity } from "./clips-panel";
 import { MovementPanel } from "./movement-panel";
 import { GimbalPicker } from "./gimbal-picker";
+import { AiCameraPanel } from "./ai-camera-panel";
 
 export interface StudioPhoto { id: string; url: string | null; thumb: string | null; file_name: string; width: number | null; height: number | null; camera: CameraSpec | null }
 export interface StudioProps {
@@ -35,10 +36,12 @@ export interface StudioProps {
   canEdit: boolean;
   photos: StudioPhoto[];
   initialPhotoId: string | null;
-  initialMode: "easy" | "move" | "advanced";
+  initialMode: "easy" | "move" | "advanced" | "ai";
   scene: { projectId: string; sceneId: string; label: string; photoId: string; camera: CameraSpec | null; aspect: Aspect; duration: number } | null;
   canUseAi: boolean;
   generative: { id: string; model: string } | null;
+  /** The AI depth method is switched on for the company. */
+  aiDepth: boolean;
   canDownload: boolean;
   activity: Activity;
 }
@@ -197,11 +200,11 @@ export function CameraStudio(p: StudioProps) {
           <p className="text-lg text-muted-foreground">{p.scene ? `Camera for ${p.scene.label}` : "Turn a property photo into a cinematic clip."}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div role="radiogroup" aria-label="Camera mode" className="flex rounded-lg border p-1">
-            {(["easy", "move", "advanced"] as const).map((m) => (
+          <div role="radiogroup" aria-label="Camera mode" className="grid w-full grid-cols-2 rounded-lg border p-1 sm:flex sm:w-auto">
+            {(["easy", "move", "ai", "advanced"] as const).map((m) => (
               <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}
-                className={cn("min-h-10 rounded-md px-4 text-sm font-semibold", mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-                {m === "easy" ? "Easy camera" : m === "move" ? "Move camera" : "Advanced camera"}
+                className={cn("flex min-h-10 items-center justify-center rounded-md px-3 text-sm font-semibold sm:px-4", mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                {m === "easy" ? "Easy camera" : m === "move" ? "Move camera" : m === "ai" ? <span className="flex items-center gap-1"><Sparkles className="size-3.5" aria-hidden="true" />AI Camera Control</span> : "Advanced camera"}
               </button>
             ))}
           </div>
@@ -285,8 +288,8 @@ export function CameraStudio(p: StudioProps) {
             <Card>
               <CardHeader><CardTitle>Make it</CardTitle></CardHeader>
               <CardContent className="flex flex-col gap-4">
-                <div role="radiogroup" aria-label="Clip shape" className="grid grid-cols-3 gap-2">
-                  {(["16:9", "9:16", "1:1"] as const).map((a) => (
+                <div role="radiogroup" aria-label="Clip shape" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {(["16:9", "9:16", "1:1", "4:5"] as const).map((a) => (
                     <button key={a} type="button" role="radio" aria-checked={shot.aspect === a} onClick={() => history.set((h) => ({ ...h, aspect: a }))}
                       className={cn("min-h-11 rounded-lg border-2 text-sm font-semibold", shot.aspect === a ? "border-primary bg-primary/5" : "border-border")}>
                       {ORIENTATION_LABELS[a].label}
@@ -373,6 +376,16 @@ export function CameraStudio(p: StudioProps) {
                   busy={busy === "apply"} canApply={p.canEdit && !busy} onApply={() => void apply()} onPreview={() => setReplay((n) => n + 1)}
                   aiExtendAvailable={false}
                   applyLabel={p.scene ? `Apply Camera Movement to ${p.scene.label}` : "Apply Camera Movement"} />
+              ) : mode === "ai" ? (
+                <AiCameraPanel spec={shot.spec} setSpec={setSpec} assetId={photo.id}
+                  photo={{ url: photo.url ?? photo.thumb, width: photo.width, height: photo.height }}
+                  aspect={shot.aspect} setAspect={(a) => history.set((h) => ({ ...h, aspect: a }), "aspect")}
+                  aspectNote={p.scene ? "This scene uses the video's shape; change it in the editor. The preview here follows it." : null}
+                  duration={shot.duration} setDuration={(d) => history.set((h) => ({ ...h, duration: d }), "duration")}
+                  canEdit={p.canEdit} canUseAi={p.canUseAi} ai={{ depth: p.aiDepth, generative: p.generative }} busy={busy}
+                  applyLabel={p.scene ? `Apply Movement to ${p.scene.label}` : "Apply Movement to this photo"}
+                  onApply={() => void apply()} onPreview={() => setReplay((n) => n + 1)} onGenerate={(m) => void makeAi(m)}
+                  onOpenMode={(m) => setMode(m)} />
               ) : (
                 <AdvancedPanel spec={shot.spec} setSpec={setSpec} duration={shot.duration}
                   setDuration={(d) => history.set((h) => ({ ...h, duration: d }), "duration")} currentView={currentView} photoUrl={photo.thumb ?? photo.url} />

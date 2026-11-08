@@ -39,6 +39,11 @@ export type OrganizationSettingsRow = {
   video_ai_provider: "muapi"; video_ai_model: string; video_ai_clip_cost_cents: number;
   daily_ai_budget_cents: number | null; ai_budget_alert_percent: number;
 };
+export type AiUsageEventRow = {
+  id: string; organization_id: string; user_id: string | null; project_id: string | null; listing_id: string | null;
+  kind: "voiceover" | "transcription" | "camera_prompt"; provider: string; model: string; status: JobStatus;
+  error_message: string | null; details: Json; cost_cents: number; created_at: string; finished_at: string | null;
+};
 export type DirectorRunRow = {
   id: string; organization_id: string; listing_id: string | null; project_id: string | null; created_by: string | null;
   style: string; model: string; status: JobStatus; photo_count: number; analysis: Json | null; storyboard: Json | null;
@@ -108,7 +113,7 @@ export type UserActivityRow = {
   storage_bytes: number; last_activity_at: string | null; last_activity: string | null;
 };
 export type AiUsageRow = {
-  id: string; at: string; kind: "video_clip" | "depth_clip" | "director" | "voiceover" | "transcription"; provider: string; model: string;
+  id: string; at: string; kind: "video_clip" | "depth_clip" | "director" | "voiceover" | "transcription" | "camera_prompt"; provider: string; model: string;
   user_id: string | null; status: string; cost_cents: number; error_message: string | null; project_id: string | null; listing_id: string | null;
 };
 export type WorkerHeartbeatRow = {
@@ -175,6 +180,7 @@ export type Database = {
         | "video_ai_clip_cost_cents" | "daily_ai_budget_cents" | "ai_budget_alert_percent">;
       agent_profiles: Table<AgentProfileRow, "organization_id" | "name">;
       director_runs: Table<DirectorRunRow, "organization_id" | "style" | "model" | "photo_count">;
+      ai_usage_events: Table<AiUsageEventRow, "organization_id" | "kind" | "model">;
       organization_secrets: Table<OrganizationSecretRow, "organization_id" | "name" | "ciphertext" | "last4">;
       video_batches: Table<VideoBatchRow, "organization_id" | "size">;
       music_tracks: Table<MusicTrackRow, "organization_id" | "asset_id" | "title" | "mood" | "license_type" | "license_details">;
@@ -228,6 +234,7 @@ export type Database = {
       provider_key_status: { Args: Record<PropertyKey, never>; Returns: Json };
       my_ai_features: { Args: Record<PropertyKey, never>; Returns: Json };
       start_local_ai: { Args: { p_kind: "voiceover" | "transcription"; p_project: string; p_model: string }; Returns: string };
+      start_camera_prompt: { Args: { p_listing: string }; Returns: Json };
       finish_local_ai: { Args: { p_id: string; p_ok: boolean; p_error: string | null; p_details: Json }; Returns: undefined };
       admin_set_project_access: { Args: { p_project: string; p_restricted: boolean; p_locked: boolean }; Returns: VideoProjectRow };
       admin_archive_project: { Args: { p_project: string; p_archived: boolean }; Returns: VideoProjectRow };

@@ -59,10 +59,10 @@ export default async function CameraStudioPage({ searchParams }: { searchParams:
       canEdit={accessRes.data === "edit" || !listingId}
       photos={photos}
       initialPhotoId={initialPhotoId}
-      initialMode={q.mode === "move" || q.mode === "easy" || q.mode === "advanced" ? q.mode : ctx.profile.ui_mode === "advanced" ? "advanced" : "easy"}
+      initialMode={q.mode === "move" || q.mode === "easy" || q.mode === "advanced" || q.mode === "ai" ? q.mode : ctx.profile.ui_mode === "advanced" ? "advanced" : "easy"}
       scene={scene}
       canUseAi={ctx.profile.can_use_ai}
-      generative={(await aiAvailability(db)).generative}
+      {...await aiAvailability(db).then((a) => ({ generative: a.generative, aiDepth: a.depth }))}
       canDownload={ctx.profile.can_download}
       activity={activity as StudioProps["activity"]}
     />
